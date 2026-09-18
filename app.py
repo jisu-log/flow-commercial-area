@@ -1,10 +1,7 @@
 import streamlit as st
-import folium
-from streamlit_folium import st_folium
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import re
 
 st.set_page_config(
     page_title="FLOW",
@@ -32,7 +29,6 @@ def _find_csv(*names):
 AREA_FILE = _find_csv("area_summary.csv", "area_summary(1).csv")
 TIME_FILE = _find_csv("time_result.csv", "time_result(1).csv")
 TWIN_FILE = _find_csv("twin_difference.csv", "twin_difference(1).csv")
-MAP_FILE = _find_csv("flow_area_map.csv")
 
 @st.cache_data
 def load_analysis_data():
@@ -58,14 +54,6 @@ def load_analysis_data():
     return area_df, time_df, twin_df
 
 area_df, time_df_all, twin_df_all = load_analysis_data()
-
-@st.cache_data
-def load_map_data():
-    df = pd.read_csv(MAP_FILE, dtype={"area_code": str})
-    df["area_code"] = df["area_code"].astype(str).str.strip()
-    return df
-
-map_df = load_map_data()
 
 # -----------------------------
 # CSS
@@ -240,166 +228,49 @@ if "show_result" not in st.session_state:
 if "selected_key" not in st.session_state:
     st.session_state.selected_key = None
 
-st.markdown("""
-<style>
-.flow-step-card{background:#fff;border:1px solid #dfe8e3;border-radius:18px;padding:20px 22px;box-shadow:0 8px 24px rgba(21,55,43,.055);margin:8px 0 16px}
-.flow-step-no{display:inline-flex;width:29px;height:29px;border-radius:50%;align-items:center;justify-content:center;background:#087443;color:white;font-weight:900;margin-right:8px}
-.flow-breadcrumb{color:#65766f;font-size:13px;font-weight:700;margin:3px 0 12px}
-.flow-selected{background:#eef8f2;border:1px solid #cfe7d8;border-left:5px solid #087443;border-radius:14px;padding:13px 16px;margin:10px 0 15px}
-.flow-help{background:#f1f8f4;border-radius:12px;padding:11px 14px;color:#486259;font-size:13px;margin:8px 0 14px}
-div[data-testid="stButton"] > button[kind="primary"]{background:#087443;border-color:#087443;border-radius:10px;font-weight:800}
-</style>
-""", unsafe_allow_html=True)
+st.markdown('<div class="section-title">1. 내 상권 찾아보기</div>', unsafe_allow_html=True)
+st.caption("분석할 상권과 업종을 선택하세요.")
 
+# 상권명만 쓰면 동명이 있을 수 있으므로 area_code까지 내부 key로 사용
+area_lookup = (
+    area_df[["area", "area_code"]]
+    .drop_duplicates()
+    .sort_values(["area", "area_code"])
+)
+area_labels = {
+    f"{row.area}": row.area_code
+    for row in area_lookup.itertuples(index=False)
+}
 
-st.markdown('''
-<style>
-/* FLOW schematic maps: reference-image-like clean white cards */
-div[data-testid="stIFrame"] { border-radius:16px; }
-.flow-step-card iframe { background:#ffffff !important; }
-</style>
-''', unsafe_allow_html=True)
+# 동일 상권명이 실제로 여러 코드에 존재하면 코드까지 표시
+dup_names = area_lookup["area"].duplicated(keep=False)
+if dup_names.any():
+    area_labels = {}
+    for row in area_lookup.itertuples(index=False):
+        label = row.area
+        if (area_lookup["area"] == row.area).sum() > 1:
+            label = f"{row.area} · {row.area_code}"
+        area_labels[label] = row.area_code
 
-st.markdown('<div class="section-title">1. 분석할 지역을 선택해주세요</div>', unsafe_allow_html=True)
-st.caption("서울시 자치구 → 행정동 → 골목상권 순서로 좁혀가며 내 상권을 찾습니다.")
-st.markdown("""
-<div style="display:flex;gap:8px;align-items:center;margin:10px 0 20px;font-size:13px;font-weight:800;color:#5f7169">
-<span style="background:#eaf6ef;color:#087443;padding:7px 12px;border-radius:999px">① 서울 자치구</span>
-<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">② 행정동</span>
-<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">③ 골목상권</span>
-<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">④ 업종</span>
-</div>
-""", unsafe_allow_html=True)
+selected_area_label = st.selectbox("상권 선택", list(area_labels.keys()))
+selected_code = str(area_labels[selected_area_label])
 
-available_codes = set(area_df["area_code"].astype(str).unique())
-explore_df = map_df[map_df["area_code"].astype(str).isin(available_codes)].copy()
-SEOUL_GU_GEOJSON = "https://raw.githubusercontent.com/southkorea/seoul-maps/master/juso/2015/json/seoul_municipalities_geo_simple.json"
+selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
+selected_area_name = selected_area_rows["area"].iloc[0]
 
-for k, v in {"selected_district":None,"selected_dong":None,"map_selected_area_code":None}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+# 선택한 상권에 실제 존재하는 업종을 전부 표시
+category_options = sorted(selected_area_rows["category"].dropna().unique().tolist())
+selected_category = st.selectbox("업종 선택", category_options)
 
-st.markdown('<div class="flow-step-card">', unsafe_allow_html=True)
-st.markdown('<span class="flow-step-no">1</span><b style="font-size:20px">서울시 자치구 선택</b>', unsafe_allow_html=True)
-st.caption("서울 약도에서 원하는 자치구를 눌러주세요.")
+with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
+    st.write(
+        "FLOW의 상권명은 분석 데이터의 상권 단위를 기준으로 합니다. "
+        "최종 서비스에서는 익숙한 역·동네명과 분석 상권명을 함께 보여주는 방식으로 연결할 수 있습니다."
+    )
 
-gu_map = folium.Map(location=[37.5665,126.9780], zoom_start=10.65, tiles=None, zoom_control=False, dragging=False, scrollWheelZoom=False, doubleClickZoom=False, attributionControl=False, prefer_canvas=True)
-folium.Rectangle(
-    bounds=[[37.40,126.72],[37.72,127.20]],
-    color="#ffffff", fill=True, fill_color="#ffffff", fill_opacity=1, weight=0
-).add_to(gu_map)
-folium.GeoJson(
-    SEOUL_GU_GEOJSON,
-    style_function=lambda f: {"fillColor":"#dcefe4" if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else "#fbfcfb","color":"#9aa8a1","weight":2.4 if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else 1.15,"fillOpacity":1},
-    highlight_function=lambda f: {"fillColor":"#cce9d8","color":"#087443","weight":2.5,"fillOpacity":1},
-    tooltip=folium.GeoJsonTooltip(fields=["SIG_KOR_NM"],aliases=[""],labels=False,sticky=True,style="background:white;color:#173c67;font-size:14px;font-weight:800;padding:6px 9px;border:1px solid #d8e4de;border-radius:7px;")
-).add_to(gu_map)
-
-gu_event=st_folium(gu_map,height=390,use_container_width=True,returned_objects=["last_active_drawing"],key="seoul_diagram_picker")
-clicked=gu_event.get("last_active_drawing") if gu_event else None
-if clicked:
-    picked_gu=(clicked.get("properties") or {}).get("SIG_KOR_NM")
-    if picked_gu in set(explore_df["district"].dropna()) and picked_gu != st.session_state.selected_district:
-        st.session_state.selected_district=picked_gu
-        st.session_state.selected_dong=None
-        st.session_state.map_selected_area_code=None
-        st.rerun()
-
-with st.expander("지도로 선택하기 어렵다면 목록으로 선택"):
-    gus=sorted(explore_df["district"].dropna().unique())
-    gu_fb=st.selectbox("자치구",gus,key="gu_fb")
-    if st.button("이 자치구 선택",key="gu_fb_btn"):
-        st.session_state.selected_district=gu_fb
-        st.session_state.selected_dong=None
-        st.session_state.map_selected_area_code=None
-        st.rerun()
-st.markdown('</div>',unsafe_allow_html=True)
-
-gu=st.session_state.selected_district
-if gu:
-    gu_df=explore_df[explore_df["district"]==gu].copy()
-    st.markdown(f'<div class="flow-breadcrumb">선택 지역 &nbsp;›&nbsp; <b>{gu}</b></div>',unsafe_allow_html=True)
-
-    st.markdown('<div class="flow-step-card">',unsafe_allow_html=True)
-    st.markdown(f'<span class="flow-step-no">2</span><b style="font-size:20px">{gu} 행정동 선택</b>',unsafe_allow_html=True)
-    st.caption("상권이 너무 많지 않도록 행정동을 먼저 선택합니다.")
-
-    dong_summary=(gu_df.dropna(subset=["dong"]).groupby("dong",as_index=False).agg(lat=("lat","mean"),lon=("lon","mean"),n=("area_code","nunique")))
-    dongs=sorted(dong_summary["dong"].tolist())
-
-    st.markdown("""
-    <div style="background:#fbfcfb;border:1px solid #e2e8e5;border-radius:16px;
-                padding:16px 18px;margin:10px 0 14px">
-      <div style="font-size:13px;color:#66766f;margin-bottom:4px">행정동을 선택하면 해당 동의 분석 가능 상권만 표시됩니다.</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    cols=st.columns(4)
-    for i,dname in enumerate(dongs):
-        count=int(dong_summary.loc[dong_summary["dong"]==dname,"n"].iloc[0])
-        with cols[i%4]:
-            if st.button(f"{dname} · 상권 {count}곳", key=f"dong_btn_{gu}_{dname}", use_container_width=True):
-                st.session_state.selected_dong=dname
-                st.session_state.map_selected_area_code=None
-                st.rerun()
-
-    with st.expander("목록으로 행정동 선택"):
-        dong_pick=st.selectbox("행정동",["행정동을 선택해주세요"]+dongs,key=f"dong_select_{gu}")
-        if dong_pick!="행정동을 선택해주세요" and dong_pick!=st.session_state.selected_dong:
-            st.session_state.selected_dong=dong_pick
-            st.session_state.map_selected_area_code=None
-            st.rerun()
-    st.markdown('</div>',unsafe_allow_html=True)
-
-dong=st.session_state.selected_dong
-if gu and dong:
-    dong_df=explore_df[(explore_df["district"]==gu)&(explore_df["dong"]==dong)].copy()
-    st.markdown(f'<div class="flow-breadcrumb">선택 지역 &nbsp;›&nbsp; <b>{gu}</b> &nbsp;›&nbsp; <b style="color:#087443">{dong}</b></div>',unsafe_allow_html=True)
-
-    st.markdown('<div class="flow-step-card">',unsafe_allow_html=True)
-    st.markdown(f'<span class="flow-step-no">3</span><b style="font-size:20px">{dong}의 분석 가능한 상권</b>',unsafe_allow_html=True)
-    st.caption(f"상권 {dong_df.area_code.nunique()}곳만 표시합니다. 파란 점을 누르면 바로 선택됩니다.")
-
-    am=folium.Map(location=[float(dong_df.lat.mean()),float(dong_df.lon.mean())],zoom_start=15,tiles=None,control_scale=False)
-    folium.TileLayer(
-        tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        attr="© OpenStreetMap contributors",
-        name="거리 지도",
-        opacity=0.58
-    ).add_to(am)
-    for r in dong_df.itertuples(index=False):
-        code=str(r.area_code); sel=code==str(st.session_state.map_selected_area_code)
-        folium.CircleMarker([r.lat,r.lon],radius=10 if sel else 7,color="#087443" if sel else "#1769aa",weight=3 if sel else 2,fill=True,fill_color="#0b8b53" if sel else "#3c86bd",fill_opacity=.92,tooltip=f"{r.area_name} 〔{code}〕").add_to(am)
-    evt=st_folium(am,height=350,use_container_width=True,returned_objects=["last_object_clicked_tooltip"],key=f"area_map_{gu}_{dong}")
-    tip=evt.get("last_object_clicked_tooltip") if evt else None
-    if tip:
-        mm=re.search(r"〔([^〕]+)〕",str(tip))
-        if mm and mm.group(1).strip()!=str(st.session_state.map_selected_area_code):
-            st.session_state.map_selected_area_code=mm.group(1).strip()
-            st.rerun()
-
-    with st.expander("지도에서 찾기 어렵다면 상권 목록으로 선택"):
-        labels={str(r.area_name):str(r.area_code) for r in dong_df.itertuples(index=False)}
-        area_fb=st.selectbox("상권",list(labels),key=f"area_fb_{gu}_{dong}")
-        if st.button("이 상권 선택",key=f"area_fb_btn_{gu}_{dong}"):
-            st.session_state.map_selected_area_code=labels[area_fb]
-            st.rerun()
-    st.markdown('</div>',unsafe_allow_html=True)
-
-selected_code=st.session_state.map_selected_area_code
-if selected_code:
-    selected_area_rows=area_df[area_df["area_code"].astype(str)==str(selected_code)].copy()
-    if not selected_area_rows.empty:
-        selected_area_name=selected_area_rows["area"].iloc[0]
-        st.markdown(f'<div class="flow-selected"><div style="font-size:12px;font-weight:800;color:#6b7c8f">선택한 상권</div><div style="font-size:20px;font-weight:900;color:#075b38">{selected_area_name}</div><div style="margin-top:4px;color:#64766e">{gu} · {dong}</div></div>',unsafe_allow_html=True)
-        st.markdown('<span class="flow-step-no">4</span><b style="font-size:20px">업종을 선택해주세요</b>',unsafe_allow_html=True)
-        categories=sorted(selected_area_rows["category"].dropna().unique())
-        selected_category=st.selectbox("업종 선택",categories,key=f"cat_{selected_code}")
-        st.markdown('<div class="flow-help">선택한 상권에서 현재 FLOW 분석 결과가 존재하는 업종만 표시합니다.</div>',unsafe_allow_html=True)
-        if st.button("FLOW 진단하기 →",type="primary"):
-            st.session_state.selected_key=(str(selected_code),selected_category)
-            st.session_state.show_result=True
-            st.rerun()
+if st.button("FLOW 진단하기 →", type="primary"):
+    st.session_state.selected_key = (selected_code, selected_category)
+    st.session_state.show_result = True
 
 if st.session_state.show_result and st.session_state.selected_key:
     selected_code, category = st.session_state.selected_key
