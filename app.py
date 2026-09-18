@@ -10,60 +10,50 @@ st.set_page_config(
 )
 
 # -----------------------------
-# DEMO DATA
+# REAL ANALYSIS DATA
 # -----------------------------
-demo_data = {
-    ("광흥창역 6번", "커피·음료"): {
-        "flow_score": 43,
-        "traffic_score": 87,
-        "consumer_score": 43,
-        "twin": "불광역 8번",
-        "similarity": 91,
-        "twin_conversion": 68,
-        "why": [
-            ("직장인구", -24, "%"),
-            ("음식업 다양성", -17, "%"),
-            ("2030 유동비중", -11, "%p")
-        ],
-        "times": ["06~11", "11~14", "14~17", "17~21", "21~24"],
-        "potential": [42, 68, 82, 71, 46],
-        "actual": [39, 63, 41, 62, 43]
-    },
+from pathlib import Path
 
-    ("길음역 7번", "커피·음료"): {
-        "flow_score": 57,
-        "traffic_score": 79,
-        "consumer_score": 57,
-        "twin": "노원역 9번",
-        "similarity": 88,
-        "twin_conversion": 66,
-        "why": [
-            ("상주/직장 비율", -18, "%"),
-            ("카페 밀도", 13, "%"),
-            ("주말 유동비중", -9, "%p")
-        ],
-        "times": ["06~11", "11~14", "14~17", "17~21", "21~24"],
-        "potential": [38, 66, 70, 81, 51],
-        "actual": [35, 61, 59, 49, 46]
-    },
+BASE_DIR = Path(__file__).resolve().parent
 
-    ("제기동역 1번", "한식"): {
-        "flow_score": 62,
-        "traffic_score": 74,
-        "consumer_score": 62,
-        "twin": "청량리역 인근",
-        "similarity": 86,
-        "twin_conversion": 64,
-        "why": [
-            ("직장인구", -15, "%"),
-            ("음식점 다양성", -12, "%"),
-            ("2030 유동비중", -8, "%p")
-        ],
-        "times": ["06~11", "11~14", "14~17", "17~21", "21~24"],
-        "potential": [37, 73, 65, 71, 48],
-        "actual": [34, 69, 57, 52, 44]
-    }
-}
+def _find_csv(*names):
+    """GitHub/Streamlit Cloud와 로컬에서 파일명을 유연하게 찾습니다."""
+    for name in names:
+        p = BASE_DIR / name
+        if p.exists():
+            return p
+    raise FileNotFoundError(
+        f"필요한 CSV 파일을 찾지 못했습니다: {', '.join(names)}"
+    )
+
+AREA_FILE = _find_csv("area_summary.csv", "area_summary(1).csv")
+TIME_FILE = _find_csv("time_result.csv", "time_result(1).csv")
+TWIN_FILE = _find_csv("twin_difference.csv", "twin_difference(1).csv")
+
+@st.cache_data
+def load_analysis_data():
+    area_df = pd.read_csv(AREA_FILE)
+    time_df = pd.read_csv(TIME_FILE)
+    twin_df = pd.read_csv(TWIN_FILE)
+
+    # key 타입을 통일해 필터링 오류 방지
+    for df in (area_df, time_df):
+        df["area_code"] = df["area_code"].astype(str).str.strip()
+        df["category"] = df["category"].astype(str).str.strip()
+        df["area"] = df["area"].astype(str).str.strip()
+
+    twin_df["area"] = twin_df["area"].astype(str).str.strip()
+    twin_df["category"] = twin_df["category"].astype(str).str.strip()
+
+    # TRUE/FALSE가 문자열로 읽혀도 정상 처리
+    area_df["analysis_available_bool"] = (
+        area_df["analysis_available"]
+        .astype(str).str.strip().str.lower()
+        .isin(["true", "1", "yes"])
+    )
+    return area_df, time_df, twin_df
+
+area_df, time_df_all, twin_df_all = load_analysis_data()
 
 # -----------------------------
 # CSS
@@ -241,12 +231,36 @@ if "selected_key" not in st.session_state:
 st.markdown('<div class="section-title">1. 내 상권 찾아보기</div>', unsafe_allow_html=True)
 st.caption("분석할 상권과 업종을 선택하세요.")
 
-available_keys = list(demo_data.keys())
-area_options = list(dict.fromkeys(k[0] for k in available_keys))
-area = st.selectbox("상권 선택", area_options)
+# 상권명만 쓰면 동명이 있을 수 있으므로 area_code까지 내부 key로 사용
+area_lookup = (
+    area_df[["area", "area_code"]]
+    .drop_duplicates()
+    .sort_values(["area", "area_code"])
+)
+area_labels = {
+    f"{row.area}": row.area_code
+    for row in area_lookup.itertuples(index=False)
+}
 
-category_options = [k[1] for k in available_keys if k[0] == area]
-category = st.selectbox("업종 선택", category_options)
+# 동일 상권명이 실제로 여러 코드에 존재하면 코드까지 표시
+dup_names = area_lookup["area"].duplicated(keep=False)
+if dup_names.any():
+    area_labels = {}
+    for row in area_lookup.itertuples(index=False):
+        label = row.area
+        if (area_lookup["area"] == row.area).sum() > 1:
+            label = f"{row.area} · {row.area_code}"
+        area_labels[label] = row.area_code
+
+selected_area_label = st.selectbox("상권 선택", list(area_labels.keys()))
+selected_code = str(area_labels[selected_area_label])
+
+selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
+selected_area_name = selected_area_rows["area"].iloc[0]
+
+# 선택한 상권에 실제 존재하는 업종을 전부 표시
+category_options = sorted(selected_area_rows["category"].dropna().unique().tolist())
+selected_category = st.selectbox("업종 선택", category_options)
 
 with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
     st.write(
@@ -255,20 +269,113 @@ with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
     )
 
 if st.button("FLOW 진단하기 →", type="primary"):
-    st.session_state.selected_key = (area, category)
+    st.session_state.selected_key = (selected_code, selected_category)
     st.session_state.show_result = True
 
-if st.session_state.show_result and st.session_state.selected_key in demo_data:
-    area, category = st.session_state.selected_key
-    data = demo_data[(area, category)]
+if st.session_state.show_result and st.session_state.selected_key:
+    selected_code, category = st.session_state.selected_key
 
-    potential = np.array(data["potential"], dtype=float)
-    actual = np.array(data["actual"], dtype=float)
-    gap = potential - actual
-    dead_index = int(np.argmax(gap))
-    dead_time = data["times"][dead_index]
-    dead_gap = float(gap[dead_index])
-    twin_diff = float(data["twin_conversion"] - actual[dead_index])
+    row_df = area_df[
+        (area_df["area_code"] == str(selected_code)) &
+        (area_df["category"] == str(category))
+    ].copy()
+
+    if row_df.empty:
+        st.error("선택한 상권·업종의 분석 결과를 찾지 못했습니다.")
+        st.stop()
+
+    row = row_df.iloc[0]
+    area = str(row["area"])
+
+    if not bool(row["analysis_available_bool"]):
+        st.markdown(f'<div class="section-title">2. {area} · {category}</div>', unsafe_allow_html=True)
+        st.warning("최근 4개 분기의 활동 또는 관측 근거가 부족하여 분석할 수 없습니다.")
+        st.stop()
+
+    # 해당 상권·업종의 시간대 결과
+    time_rows = time_df_all[
+        (time_df_all["area_code"] == str(selected_code)) &
+        (time_df_all["category"] == str(category))
+    ].copy()
+
+    # 00~06 및 activity_eligible == FALSE는 DEAD TIME 후보에서 제외
+    if "activity_eligible" in time_rows.columns:
+        eligible = (
+            time_rows["activity_eligible"].astype(str).str.strip().str.lower()
+            .isin(["true", "1", "yes"])
+        )
+    else:
+        eligible = pd.Series(True, index=time_rows.index)
+
+    dead_candidates = time_rows[
+        (time_rows["time"].astype(str) != "00~06") & eligible
+    ].copy()
+
+    # area_summary의 dead_time을 우선 사용하고, 없으면 eligible gap 최대값
+    dead_time = str(row.get("dead_time", "")).strip()
+    if (not dead_time) or dead_time.lower() == "nan" or dead_time == "뚜렷한 DEAD TIME 없음":
+        if not dead_candidates.empty:
+            dead_time = str(dead_candidates.loc[dead_candidates["gap"].idxmax(), "time"])
+        else:
+            dead_time = "뚜렷한 DEAD TIME 없음"
+
+    # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
+    chart_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
+    time_order = ["06~11", "11~14", "14~17", "17~21", "21~24"]
+    chart_rows["time"] = pd.Categorical(chart_rows["time"], categories=time_order, ordered=True)
+    chart_rows = chart_rows.sort_values("time")
+
+    if chart_rows.empty:
+        st.warning("이 상권·업종의 시간대 분석 결과가 없습니다.")
+        st.stop()
+
+    times = chart_rows["time"].astype(str).tolist()
+    potential = chart_rows["potential"].astype(float).to_numpy()
+    actual = chart_rows["actual"].astype(float).to_numpy()
+
+    if dead_time in times:
+        dead_index = times.index(dead_time)
+    else:
+        valid_gap = (potential - actual)
+        dead_index = int(np.nanargmax(valid_gap))
+        dead_time = times[dead_index]
+
+    dead_gap = float(potential[dead_index] - actual[dead_index])
+
+    # BEST TWIN 차이 TOP3
+    twin_name_raw = row.get("twin_name", np.nan)
+    twin_name = "" if pd.isna(twin_name_raw) else str(twin_name_raw).strip()
+    twin_rows = twin_df_all[
+        (twin_df_all["area"] == area) &
+        (twin_df_all["category"] == str(category))
+    ].copy()
+    if twin_name:
+        twin_rows = twin_rows[twin_rows["twin_name"].astype(str).str.strip() == twin_name]
+    if "rank" in twin_rows.columns:
+        twin_rows = twin_rows.sort_values("rank")
+    twin_rows = twin_rows.head(3)
+
+    why = []
+    for r in twin_rows.itertuples(index=False):
+        why.append((str(r.feature), float(r.difference), str(r.unit)))
+
+    data = {
+        "flow_score": float(row["flow_score"]),
+        "traffic_score": float(row["traffic_score"]),
+        "consumer_score": float(row["consumer_score"]),
+        "times": times,
+        "potential": potential.tolist(),
+        "actual": actual.tolist(),
+        "twin": twin_name,
+        "similarity": float(row["similarity"]) if pd.notna(row["similarity"]) else np.nan,
+        "twin_conversion": float(row["twin_conversion"]) if pd.notna(row["twin_conversion"]) else np.nan,
+        "why": why,
+    }
+
+    twin_diff = (
+        float(data["twin_conversion"] - actual[dead_index])
+        if pd.notna(data["twin_conversion"]) else np.nan
+    )
 
     if data["consumer_score"] < 50:
         flow_type = "전환 개선형"
@@ -401,60 +508,68 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
     # 4. TWIN
     st.markdown('<div class="section-title">4. 비슷한 조건인데 더 잘되는 곳은?</div>', unsafe_allow_html=True)
 
-    st.markdown(
-        f"""
-        <div class="twin-box">
-            <div class="label">BEST TWIN</div>
-            <div style="font-size:31px;font-weight:850;color:#173c67;margin:7px 0;">{data["twin"]}</div>
-            <div style="font-size:17px;font-weight:750;color:#18324a;">
-                우리 상권과 구조는 비슷하지만 소비 연결은 더 활발한 비교상권입니다.
-            </div>
-            <div class="subtext">
-                유사도 지수 {data["similarity"]}% · 비슷한 조건에서도 다른 결과가 나타나는 지점을 찾기 위한 비교 기준
-            </div>
-        </div>
-        """, unsafe_allow_html=True
-    )
+    if not data["twin"]:
+        st.info("현재 조건에서 성과가 더 높은 유사상권을 찾지 못했습니다.")
+    else:
+        similarity_text = f"{data['similarity']:.1f}" if pd.notna(data["similarity"]) else "—"
+        twin_conversion_text = f"{data['twin_conversion']:.1f}" if pd.notna(data["twin_conversion"]) else "—"
+        twin_diff_text = f"+{twin_diff:.1f}" if pd.notna(twin_diff) else "—"
 
-    st.markdown(
-        f"""
-        <div class="card" style="margin-top:12px;">
-            <div class="label">핵심 비교</div>
-            <div style="font-size:23px;font-weight:850;color:#173c67;margin:6px 0;">
-                {dead_time}, 유사상권에서는 소비 연결이 더 활발합니다.
-            </div>
-            <div class="subtext">
-                내부 분석지수 기준 우리 상권 {actual[dead_index]:.0f} · BEST TWIN {data["twin_conversion"]} 
-                · 차이 +{twin_diff:.0f}
-            </div>
-        </div>
-        """, unsafe_allow_html=True
-    )
-
-    st.markdown("#### 두 상권에서 눈에 띄는 차이")
-    why_cols = st.columns(3)
-    for i, (feature, diff, unit) in enumerate(data["why"]):
-        with why_cols[i]:
-            direction = "더 낮습니다" if diff < 0 else "더 높습니다"
-            st.markdown(
-                f"""
-                <div class="card">
-                    <div class="label">비교 포인트 {i+1}</div>
-                    <div style="font-size:19px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
-                    <div style="font-size:15px;line-height:1.6;">
-                        우리 상권이 BEST TWIN보다 <b>{abs(diff)}{unit} {direction}</b>
-                    </div>
+        st.markdown(
+            f"""
+            <div class="twin-box">
+                <div class="label">BEST TWIN</div>
+                <div style="font-size:31px;font-weight:850;color:#173c67;margin:7px 0;">{data["twin"]}</div>
+                <div style="font-size:17px;font-weight:750;color:#18324a;">
+                    우리 상권과 구조는 비슷하지만 소비 연결은 더 활발한 비교상권입니다.
                 </div>
-                """, unsafe_allow_html=True
-            )
-
-    st.caption("※ 위 차이는 원인으로 확정한 결과가 아니라, 추가로 살펴볼 비교 포인트입니다.")
-
-    with st.expander("ⓘ BEST TWIN과 유사도는 어떻게 해석하나요?"):
-        st.write(
-            "유사도는 실제 특성의 일치율이 아니라 여러 상권 특성의 상대적 차이를 바탕으로 만든 구조적 유사도입니다. "
-            "BEST TWIN은 인과관계를 증명하는 대상이 아니라 비슷한 조건에서 다른 결과가 나타나는 지점을 찾기 위한 비교 기준입니다."
+                <div class="subtext">
+                    유사도 지수 {similarity_text} · 여러 상권 특성의 평균 백분위 차이를 이용한 구조적 유사도
+                </div>
+            </div>
+            """, unsafe_allow_html=True
         )
+
+        st.markdown(
+            f"""
+            <div class="card" style="margin-top:12px;">
+                <div class="label">핵심 비교</div>
+                <div style="font-size:23px;font-weight:850;color:#173c67;margin:6px 0;">
+                    {dead_time}, 유사상권에서는 소비 연결이 더 활발합니다.
+                </div>
+                <div class="subtext">
+                    내부 분석지수 기준 우리 상권 {actual[dead_index]:.1f} · BEST TWIN {twin_conversion_text}
+                    · 차이 {twin_diff_text}
+                </div>
+            </div>
+            """, unsafe_allow_html=True
+        )
+
+        if data["why"]:
+            st.markdown("#### 두 상권에서 눈에 띄는 차이")
+            why_cols = st.columns(len(data["why"]))
+            for i, (feature, diff, unit) in enumerate(data["why"]):
+                with why_cols[i]:
+                    direction = "더 낮습니다" if diff < 0 else "더 높습니다"
+                    value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
+                    st.markdown(
+                        f"""
+                        <div class="card">
+                            <div class="label">비교 포인트 {i+1}</div>
+                            <div style="font-size:19px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
+                            <div style="font-size:15px;line-height:1.6;">
+                                우리 상권이 BEST TWIN보다 <b>{value}{unit} {direction}</b>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True
+                    )
+            st.caption("※ 위 차이는 원인으로 확정한 결과가 아니라, 추가로 살펴볼 비교 포인트입니다.")
+
+        with st.expander("ⓘ BEST TWIN과 유사도는 어떻게 해석하나요?"):
+            st.write(
+                "BEST TWIN은 구조가 유사한 후보 중 소비 연결 성과가 더 높은 비교 상권입니다. "
+                "유사도는 실제 특성 일치율이 아니라 16개 상권특성에서 두 상권의 평균 백분위 차이를 이용한 구조적 유사도입니다."
+            )
 
     # 5. STORE DIAGNOSIS
     st.markdown('<div class="section-title">5. 우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
@@ -593,7 +708,7 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
                 p3_title = f"{dead_time}을 비교상권과 함께 보세요"
                 p3_text = (
                     f"내 가게와 상권의 취약시간이 모두 {dead_time}입니다. "
-                    f"FLOW가 이미 보유한 상권 데이터에서는 {data['twin']}이 비슷한 조건에서 소비 연결이 더 활발했습니다. "
+                    f"FLOW의 상권 데이터와 유사상권 비교 결과를 함께 참고할 수 있습니다. "
                     "점포 기록을 확보한 뒤 이 시간대의 차이를 우선 비교해볼 가치가 있습니다."
                 )
                 p3_how = "FLOW 보유: 상권 시간대 결과 · BEST TWIN 비교"
