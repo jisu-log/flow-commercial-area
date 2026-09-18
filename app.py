@@ -239,7 +239,7 @@ if "selected_key" not in st.session_state:
     st.session_state.selected_key = None
 
 st.markdown('<div class="section-title">1. 내 상권 찾아보기</div>', unsafe_allow_html=True)
-st.caption("현재 DEMO에서는 준비된 상권·업종 조합만 선택할 수 있습니다.")
+st.caption("분석할 상권과 업종을 선택하세요.")
 
 available_keys = list(demo_data.keys())
 area_options = list(dict.fromkeys(k[0] for k in available_keys))
@@ -250,8 +250,8 @@ category = st.selectbox("업종 선택", category_options)
 
 with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
     st.write(
-        "FLOW의 상권명은 분석 데이터의 상권 단위를 기준으로 표시합니다. "
-        "최종 버전에서는 사용자가 익숙한 역·동네명과 분석 상권명을 함께 보여주는 방식으로 연결할 수 있습니다."
+        "FLOW의 상권명은 분석 데이터의 상권 단위를 기준으로 합니다. "
+        "최종 서비스에서는 익숙한 역·동네명과 분석 상권명을 함께 보여주는 방식으로 연결할 수 있습니다."
     )
 
 if st.button("FLOW 진단하기 →", type="primary"):
@@ -272,27 +272,31 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
 
     if data["consumer_score"] < 50:
         flow_type = "전환 개선형"
-        hero_line = "사람은 있는데, 소비로 충분히 연결되지 않고 있습니다."
-        hero_sub = "새로운 유동을 더 만드는 것보다 현재 존재하는 유동의 소비 전환을 먼저 살펴볼 상권입니다."
+        hero_line = "사람은 충분한데, 실제 소비로 이어지는 힘은 약한 편입니다."
+        traffic_label = "충분한 편"
+        conversion_label = "낮은 편"
+        hero_sub = "새로운 사람을 더 모으는 것보다, 이미 존재하는 유동이 왜 소비로 이어지지 않는지 먼저 볼 필요가 있습니다."
     elif data["consumer_score"] < 70:
         flow_type = "균형 점검형"
-        hero_line = "유동과 소비 연결은 보통 수준이지만, 놓치는 시간대가 있습니다."
-        hero_sub = "전체 평균보다 시간대별 소비공백을 중심으로 개선 기회를 확인해볼 상권입니다."
+        hero_line = "사람의 흐름과 소비 연결은 보통 수준이지만, 놓치는 구간이 있습니다."
+        traffic_label = "보통 이상"
+        conversion_label = "보통 수준"
+        hero_sub = "전체 평균보다 시간대별 차이를 중심으로 소비 기회를 확인해볼 상권입니다."
     else:
         flow_type = "연결 우수형"
-        hero_line = "유동이 비교적 잘 소비로 연결되고 있습니다."
-        hero_sub = "전체 수준보다 시간대별 편차와 비교상권의 강점을 중심으로 추가 기회를 확인해볼 수 있습니다."
+        hero_line = "사람의 흐름이 실제 소비로 비교적 잘 이어지는 편입니다."
+        traffic_label = "충분한 편"
+        conversion_label = "높은 편"
+        hero_sub = "전체 수준보다 특정 시간대의 추가 기회와 유사상권의 차이를 확인해볼 수 있습니다."
 
-    # -----------------------------
-    # 2. HERO RESULT
-    # -----------------------------
-    st.markdown(f'<div class="section-title">2. {area} · {category}</div>', unsafe_allow_html=True)
+    # 2. ONE-LINE DIAGNOSIS
+    st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"""
         <div class="diagnosis-box">
-            <div class="label">FLOW DIAGNOSIS · {flow_type}</div>
-            <div style="font-size:29px;font-weight:850;color:#173c67;line-height:1.35;margin:8px 0 8px;">
+            <div class="label">FLOW 진단 · {flow_type}</div>
+            <div style="font-size:30px;font-weight:850;color:#173c67;line-height:1.35;margin:8px 0 10px;">
                 {hero_line}
             </div>
             <div class="subtext">{hero_sub}</div>
@@ -306,71 +310,68 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
         st.markdown(
             f"""
             <div class="card">
-                <div class="label">소비 연결력 · FLOW SCORE</div>
-                <div class="big">{data["flow_score"]}</div>
-                <div class="subtext">상권 여건 대비 유동이 실제 소비로 연결되는 상대적 수준</div>
+                <div class="label">사람의 흐름</div>
+                <div style="font-size:27px;font-weight:850;color:#173c67;margin:7px 0;">{traffic_label}</div>
+                <div class="subtext">같은 업종의 비교 상권 가운데 유동이 어느 정도인지 보여줍니다.</div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
     with c2:
         st.markdown(
             f"""
             <div class="card">
-                <div class="label">유동 수준</div>
-                <div class="big">{data["traffic_score"]}</div>
-                <div class="subtext">같은 업종 비교 상권 가운데 사람 흐름의 상대적 수준</div>
+                <div class="label">소비로 이어지는 정도</div>
+                <div style="font-size:27px;font-weight:850;color:#a55c00;margin:7px 0;">{conversion_label}</div>
+                <div class="subtext">상권 여건에 비해 실제 소비가 얼마나 연결되는지를 비교한 결과입니다.</div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """, unsafe_allow_html=True
         )
 
-    with st.expander("ⓘ FLOW SCORE가 무엇인가요?"):
+    with st.expander("ⓘ 분석지수도 확인하고 싶어요"):
         st.write(
-            "FLOW SCORE는 매출액이나 미래 매출 예측값이 아닙니다. "
-            "상권 여건을 고려했을 때 유동이 실제 소비로 얼마나 연결되는지를 비교하기 위한 상대적 진단 지표입니다."
+            f"분석지수 기준으로 유동 수준은 {data['traffic_score']}, FLOW SCORE는 {data['flow_score']}입니다. "
+            "두 값은 매출액이나 미래 매출 예측값이 아니라 상권 간 상대 비교를 위한 분석지표입니다."
         )
 
-    # -----------------------------
-    # 3. TIME OPPORTUNITY
-    # -----------------------------
-    st.markdown('<div class="section-title">3. 가장 먼저 볼 시간은 언제일까요?</div>', unsafe_allow_html=True)
+    # 3. TIME
+    st.markdown('<div class="section-title">3. 사람이 소비로 가장 덜 이어지는 시간은?</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"""
         <div class="action-box">
-            <div class="label">가장 큰 소비공백</div>
-            <div style="font-size:32px;font-weight:850;color:#a55c00;margin:5px 0;">{dead_time}</div>
-            <div style="font-size:16px;line-height:1.7;">
-                상권 여건상 기대 수준은 <b>{potential[dead_index]:.0f}</b>, 실제 소비 수준은
-                <b>{actual[dead_index]:.0f}</b>로 현재 DEMO 기준 <b>{dead_gap:.0f}점</b> 차이가 납니다.
+            <div class="label">가장 큰 소비공백이 나타난 시간</div>
+            <div style="font-size:34px;font-weight:850;color:#a55c00;margin:5px 0 7px;">{dead_time}</div>
+            <div style="font-size:17px;font-weight:750;color:#18324a;line-height:1.65;">
+                이 시간대는 주변 유동과 상권 조건에 비해 실제 소비가 상대적으로 낮게 나타났습니다.
+            </div>
+            <div class="subtext">
+                즉, 사람이 전혀 없는 시간이 아니라 <b>사람의 활동이 소비로 충분히 이어지지 않는 시간</b>에 가깝습니다.
             </div>
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
     time_df = pd.DataFrame({
         "시간대": data["times"],
-        "상권 여건상 기대 소비": data["potential"],
-        "실제 소비": data["actual"]
+        "상권 활동·소비 여건": data["potential"],
+        "실제 소비 수준": data["actual"]
     })
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=time_df["시간대"], y=time_df["상권 여건상 기대 소비"],
-        name="상권 여건상 기대 소비", marker_color="#A8C7E8"
+        x=time_df["시간대"], y=time_df["상권 활동·소비 여건"],
+        name="상권 활동·소비 여건", marker_color="#A8C7E8"
     ))
     fig.add_trace(go.Bar(
-        x=time_df["시간대"], y=time_df["실제 소비"],
-        name="실제 소비", marker_color="#245B91"
+        x=time_df["시간대"], y=time_df["실제 소비 수준"],
+        name="실제 소비 수준", marker_color="#245B91"
     ))
     fig.update_layout(
-        barmode="group", height=400,
+        barmode="group", height=390,
         margin=dict(l=15, r=15, t=50, b=15),
         plot_bgcolor="white", paper_bgcolor="white",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        yaxis=dict(gridcolor="#e9eef3", title="상대 점수"),
+        yaxis=dict(gridcolor="#e9eef3", title="상대 지수", showticklabels=False),
         xaxis=dict(showgrid=False, title=""),
         bargap=0.28
     )
@@ -380,95 +381,86 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    st.info(
-        f"**해석:** {dead_time}은 '이 시간에 반드시 매출이 오른다'는 뜻이 아니라, "
-        "현재 상권에서 **소비 연결이 가장 아쉬워 우선 확인할 가치가 있는 시간대**입니다."
+    st.markdown(
+        f"""
+        <div style="background:#eef6ff;border-left:4px solid #245B91;border-radius:8px;padding:14px 16px;margin-top:2px;">
+            <b>{dead_time}을 먼저 보세요.</b><br>
+            다른 시간대보다 상권의 활동·소비 여건과 실제 소비 사이의 간격이 크게 나타납니다.
+            FLOW는 이를 '매출이 오를 시간'이 아니라 <b>우선 점검할 시간</b>으로 해석합니다.
+        </div>
+        """, unsafe_allow_html=True
     )
 
-    with st.expander("ⓘ 기대 소비와 소비공백은 무슨 뜻인가요?"):
+    with st.expander("ⓘ 그래프는 어떻게 계산됐나요?"):
         st.write(
-            "기대 소비는 정확한 미래 매출 예측값이 아니라 상권 조건을 고려한 상대적 소비 기대수준입니다. "
-            "소비공백은 이 기대수준과 실제 소비 사이의 차이를 뜻합니다."
+            f"분석 내부 지수에서는 {dead_time}의 상권 조건을 고려한 상대적 소비 기대수준이 "
+            f"{potential[dead_index]:.0f}, 실제 소비 수준이 {actual[dead_index]:.0f}로 계산되었습니다. "
+            f"차이는 {dead_gap:.0f}입니다. 이 값은 원화 매출이나 미래 매출 예측치가 아닙니다."
         )
 
-    # -----------------------------
     # 4. TWIN
-    # -----------------------------
-    st.markdown('<div class="section-title">4. 비슷한데 더 잘되는 상권은 어디일까요?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">4. 비슷한 조건인데 더 잘되는 곳은?</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"""
         <div class="twin-box">
-            <div class="label">BEST TWIN · 구조적으로 가장 유사한 비교상권</div>
+            <div class="label">BEST TWIN</div>
             <div style="font-size:31px;font-weight:850;color:#173c67;margin:7px 0;">{data["twin"]}</div>
-            <div style="font-size:16px;">상권 구조 유사도 <b>{data["similarity"]}%</b></div>
+            <div style="font-size:17px;font-weight:750;color:#18324a;">
+                우리 상권과 구조는 비슷하지만 소비 연결은 더 활발한 비교상권입니다.
+            </div>
             <div class="subtext">
-                우리 상권과 구조가 비슷한 후보 가운데 소비 연결 성과가 더 높은 곳입니다.
-                '원래 이런 상권이라 어쩔 수 없는가?'를 비교해보기 위한 기준입니다.
+                상권 구조 유사도 {data["similarity"]}% · 비슷한 조건에서도 다른 결과가 나타나는 지점을 찾기 위한 비교 기준
             </div>
         </div>
-        """,
-        unsafe_allow_html=True
+        """, unsafe_allow_html=True
     )
 
-    t1, t2 = st.columns(2)
-    with t1:
-        st.markdown(
-            f"""
-            <div class="card">
-                <div class="label">우리 상권 · {dead_time}</div>
-                <div class="big">{actual[dead_index]:.0f}</div>
-                <div class="subtext">소비 연결 수준</div>
+    st.markdown(
+        f"""
+        <div class="card" style="margin-top:12px;">
+            <div class="label">핵심 비교</div>
+            <div style="font-size:23px;font-weight:850;color:#173c67;margin:6px 0;">
+                {dead_time}, 유사상권에서는 소비 연결이 더 활발합니다.
             </div>
-            """,
-            unsafe_allow_html=True
-        )
-    with t2:
-        st.markdown(
-            f"""
-            <div class="card">
-                <div class="label">BEST TWIN · 비교 수준</div>
-                <div class="big">{data["twin_conversion"]}</div>
-                <div class="subtext">우리 상권보다 <b>+{twin_diff:.0f}점</b></div>
+            <div class="subtext">
+                내부 분석지수 기준 우리 상권 {actual[dead_index]:.0f} · BEST TWIN {data["twin_conversion"]} 
+                · 차이 +{twin_diff:.0f}
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+        </div>
+        """, unsafe_allow_html=True
+    )
 
-    st.markdown("#### 두 상권에서 크게 다른 특성")
+    st.markdown("#### 두 상권에서 눈에 띄는 차이")
     why_cols = st.columns(3)
     for i, (feature, diff, unit) in enumerate(data["why"]):
         with why_cols[i]:
-            direction = "낮음" if diff < 0 else "높음"
+            direction = "더 낮습니다" if diff < 0 else "더 높습니다"
             st.markdown(
                 f"""
                 <div class="card">
-                    <div class="label">차이 TOP {i+1}</div>
-                    <div style="font-size:18px;font-weight:800;color:#183f6c;margin-bottom:8px;">{feature}</div>
-                    <div style="font-size:26px;font-weight:800;color:#5c6f82;">{abs(diff)}{unit}</div>
-                    <div class="subtext">우리 상권이 더 {direction}</div>
+                    <div class="label">비교 포인트 {i+1}</div>
+                    <div style="font-size:19px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
+                    <div style="font-size:15px;line-height:1.6;">
+                        우리 상권이 BEST TWIN보다 <b>{abs(diff)}{unit} {direction}</b>
+                    </div>
                 </div>
-                """,
-                unsafe_allow_html=True
+                """, unsafe_allow_html=True
             )
 
-    st.caption(
-        "※ 위 차이는 비교 포인트이며 소비성과 차이의 직접적인 원인이라는 의미는 아닙니다."
-    )
+    st.caption("※ 위 차이는 원인으로 확정한 결과가 아니라, 추가로 살펴볼 비교 포인트입니다.")
 
     with st.expander("ⓘ BEST TWIN과 유사도는 어떻게 해석하나요?"):
         st.write(
             "유사도는 실제 특성의 일치율이 아니라 여러 상권 특성의 상대적 차이를 바탕으로 만든 구조적 유사도입니다. "
-            "BEST TWIN은 인과관계를 증명하는 대상이 아니라, 비슷한 조건에서 다른 결과가 나타나는 지점을 찾기 위한 비교 기준입니다."
+            "BEST TWIN은 인과관계를 증명하는 대상이 아니라 비슷한 조건에서 다른 결과가 나타나는 지점을 찾기 위한 비교 기준입니다."
         )
 
-    # -----------------------------
     # 5. STORE DIAGNOSIS
-    # -----------------------------
-    st.markdown('<div class="section-title">5. 우리 가게는 어디에서 막히고 있을까요?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">5. 우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
     st.write(
-        "여기부터는 **상권 데이터 + 사장님의 매장 상황**을 함께 봅니다. "
-        "현재 데이터로 직접 비교할 수 있는 것은 시간대이며, 나머지 문항은 문제 지점을 좁히기 위한 점포 자가진단입니다."
+        "상권의 문제와 내 가게의 문제는 다를 수 있습니다. "
+        "간단한 매장 상황을 입력하면 **상권 결과와 비교해 확인 순서**를 좁혀드립니다."
     )
 
     compare_store = st.checkbox("내 가게 맞춤진단 시작하기", key="compare_store")
@@ -481,15 +473,14 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
         )
 
         store_stage = st.radio(
-            "② 그 시간대에 가장 가깝다고 느끼는 상황은 무엇인가요?",
+            "② 그 시간대에 가장 가까운 상황은 무엇인가요?",
             [
                 "잘 모르겠어요",
                 "주변에 사람 자체가 적어요",
                 "사람은 지나가지만 가게로 잘 들어오지 않아요",
                 "손님은 들어오지만 주문·구매가 기대보다 적어요"
             ],
-            key="store_stage",
-            horizontal=False
+            key="store_stage"
         )
 
         store_channel = st.radio(
@@ -502,116 +493,118 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
         if store_weak != "선택해주세요":
             same_time = store_weak == dead_time
 
-            st.markdown("### 맞춤진단 결과")
-
             if same_time:
-                result_title = "상권과 내 가게의 취약 시간이 겹칩니다."
+                result_title = "상권과 내 가게의 취약 시간이 같습니다."
                 result_desc = (
-                    f"상권에서도 **{dead_time}**의 소비공백이 가장 크고, "
-                    f"내 가게도 같은 시간대가 가장 약하다고 응답했습니다. "
-                    "따라서 점포 문제만 보기 전에 상권 공통 패턴과 점포 운영을 함께 확인할 가치가 있습니다."
+                    f"상권에서도 {dead_time}의 소비공백이 가장 크고 내 가게도 같은 시간이 가장 약합니다. "
+                    "점포만의 문제라고 보기 전에 상권 공통 패턴과 점포 운영을 함께 확인하는 것이 좋습니다."
                 )
             else:
-                result_title = "상권과 내 가게의 취약 시간이 다릅니다."
+                result_title = "상권보다 내 가게의 개별 문제를 먼저 볼 필요가 있습니다."
                 result_desc = (
-                    f"상권은 **{dead_time}**이 가장 취약하지만 내 가게는 **{store_weak}**이 가장 약합니다. "
-                    "상권 평균만으로 설명하기보다 점포 개별 운영 요인을 우선 확인할 필요가 있습니다."
+                    f"상권은 {dead_time}이 가장 취약하지만 내 가게는 {store_weak}이 가장 약합니다. "
+                    "상권 평균과 다른 패턴이므로 점포의 운영·입점·구매 과정을 먼저 확인하는 편이 타당합니다."
                 )
 
+            st.markdown("### 맞춤진단 결과")
             st.markdown(
                 f"""
                 <div class="diagnosis-box">
                     <div class="label">MY STORE × FLOW</div>
-                    <div style="font-size:24px;font-weight:850;color:#173c67;margin:7px 0;">{result_title}</div>
+                    <div style="font-size:25px;font-weight:850;color:#173c67;margin:7px 0;">{result_title}</div>
                     <div class="subtext">{result_desc}</div>
                 </div>
-                """,
-                unsafe_allow_html=True
+                """, unsafe_allow_html=True
             )
 
-            st.markdown("#### 지금 가장 먼저 확인할 지점")
-
-            if store_stage == "주변에 사람 자체가 적어요":
-                if same_time:
-                    action_title = "실제 매장 앞 유동부터 확인"
-                    action_text = (
-                        "상권 전체의 소비공백과 내 매장의 취약시간이 겹칩니다. "
-                        "다만 '사람 자체가 적다'는 체감이 맞는지는 매장 앞 시간대별 통행량·입점 수를 먼저 확인해야 합니다."
-                    )
-                    check_items = "시간대별 매장 앞 통행량 · 입점 수 · 영업시간"
-                else:
-                    action_title = "상권보다 매장 위치·노출 조건 확인"
-                    action_text = (
-                        "상권 전체의 취약시간과 내 매장의 취약시간이 다릅니다. "
-                        "따라서 상권 전체 유동보다 매장 앞 실제 유동과 위치·노출 차이를 먼저 점검하는 편이 타당합니다."
-                    )
-                    check_items = "매장 앞 통행량 · 입점 동선 · 영업시간"
-
-            elif store_stage == "사람은 지나가지만 가게로 잘 들어오지 않아요":
-                action_title = "유동 → 입점 전환 단계 확인"
-                action_text = (
-                    "사장님 응답에서는 '사람은 있지만 입점이 적다'는 단계가 지목됐습니다. "
-                    "FLOW가 이 원인을 데이터로 확정한 것은 아니므로, 실제 입점률을 확인해 가설을 검증하는 것이 우선입니다."
-                )
-                check_items = "시간대별 통행량 · 입점 수 · 입점률"
-
+            # Build three prioritized actions from user's own answers.
+            if store_stage == "사람은 지나가지만 가게로 잘 들어오지 않아요":
+                p1_title = f"{store_weak} 입점 전환 확인"
+                p1_text = "매장 앞을 지나는 사람 대비 실제로 들어오는 사람의 비율을 먼저 확인하세요."
+                p1_data = "통행량 · 입점 수 · 입점률"
             elif store_stage == "손님은 들어오지만 주문·구매가 기대보다 적어요":
-                action_title = "입점 → 구매 전환 단계 확인"
-                action_text = (
-                    "사장님 응답에서는 방문 이후 주문·구매 단계가 취약하다고 나타났습니다. "
-                    "주문건수와 객단가를 확인하면 '방문은 있는데 구매가 약한지'를 보다 구체적으로 점검할 수 있습니다."
-                )
-                check_items = "방문자 수 · 주문건수 · 객단가"
-
+                p1_title = f"{store_weak} 구매 전환 확인"
+                p1_text = "방문 이후 주문으로 이어지는 과정과 객단가를 먼저 확인하세요."
+                p1_data = "방문자 수 · 주문건수 · 객단가"
+            elif store_stage == "주변에 사람 자체가 적어요":
+                p1_title = f"{store_weak} 실제 매장 앞 유동 확인"
+                p1_text = "상권 전체가 아니라 내 매장 앞의 실제 통행량이 낮은지 먼저 확인하세요."
+                p1_data = "매장 앞 통행량 · 입점 수"
             else:
-                action_title = f"{dead_time if same_time else store_weak} 데이터부터 확인"
-                action_text = (
-                    "현재 응답만으로는 유동·입점·구매 중 어느 단계가 문제인지 구분하기 어렵습니다. "
-                    "시간대별 기본 운영지표를 확인하면 다음 진단 단계로 넘어갈 수 있습니다."
-                )
-                check_items = "통행량 · 입점 수 · 주문건수 · 객단가"
+                p1_title = f"{store_weak} 기본 운영지표 확인"
+                p1_text = "현재 응답만으로 막히는 단계를 특정하기 어려워 기본 지표부터 확인하는 것이 좋습니다."
+                p1_data = "통행량 · 입점 수 · 주문건수 · 객단가"
 
-            st.markdown(
-                f"""
-                <div class="action-box">
-                    <div class="label">FLOW ACTION</div>
-                    <div style="font-size:25px;font-weight:850;color:#a55c00;margin:7px 0;">{action_title}</div>
-                    <div style="font-size:15px;line-height:1.75;margin-bottom:12px;">{action_text}</div>
-                    <div style="font-size:14px;font-weight:800;color:#183f6c;">확인할 데이터</div>
-                    <div style="font-size:14px;margin-top:4px;">{check_items}</div>
-                    <div style="font-size:13px;color:#71808f;margin-top:10px;">
-                        매출 방식 응답: {store_channel}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            if store_channel == "포장 중심":
+                p2_title = "포장 고객 동선 확인"
+                p2_text = "포장 중심 매장이므로 메뉴 확인 → 주문 → 수령 과정에서 불편이나 이탈이 있는지 확인하세요."
+                p2_data = "포장 주문건수 · 대기시간 · 주문취소"
+            elif store_channel == "배달 중심":
+                p2_title = "배달 주문 흐름 확인"
+                p2_text = "배달 중심 매장이므로 해당 시간대의 노출·주문·취소 흐름을 따로 확인하세요."
+                p2_data = "배달 노출 · 주문건수 · 취소건수"
+            elif store_channel == "매장 중심":
+                p2_title = "매장 방문 흐름 확인"
+                p2_text = "매장 중심 매장이므로 입점 이후 주문까지의 흐름을 시간대별로 확인하세요."
+                p2_data = "입점 수 · 주문건수 · 회전"
+            elif store_channel == "혼합형":
+                p2_title = "판매 채널별로 나눠 확인"
+                p2_text = "매장·포장·배달을 합쳐 보면 문제가 가려질 수 있어 채널별 주문 흐름을 분리해 확인하세요."
+                p2_data = "매장 · 포장 · 배달 주문건수"
+            else:
+                p2_title = "판매 방식부터 구분"
+                p2_text = "어떤 판매 방식에서 매출이 발생하는지부터 구분하면 취약시간의 원인을 더 좁힐 수 있습니다."
+                p2_data = "매장 · 포장 · 배달 비중"
 
             if same_time:
-                st.info(
-                    f"**비교 힌트:** {data['twin']}은 유사한 상권 구조를 가지면서 소비 연결 수준이 더 높습니다. "
-                    "점포 데이터를 확보하면 같은 시간대의 차이를 추가 비교할 수 있습니다."
-                )
+                p3_title = f"{dead_time} 상권 공통 패턴과 함께 비교"
+                p3_text = f"내 가게와 상권의 취약시간이 같으므로 {data['twin']}의 같은 시간대와 비교할 가치가 있습니다."
+                p3_data = "내 점포 지표 · 상권 지표 · BEST TWIN"
             else:
-                st.info(
-                    "현재는 상권 패턴과 점포 패턴이 다르므로 BEST TWIN보다 먼저 내 매장의 시간대별 운영지표를 확인하는 편이 좋습니다."
-                )
+                p3_title = f"상권의 {dead_time} 대응은 후순위"
+                p3_text = f"현재 내 가게는 {store_weak}이 더 약하므로 상권 전체의 {dead_time}보다 내 점포 문제를 먼저 확인하세요."
+                p3_data = "내 점포 시간대별 운영지표"
 
-        with st.expander("ⓘ 왜 고객 연령대는 묻지 않나요?"):
+            st.markdown("### FLOW ACTION · 확인 순서")
+            ac1, ac2, ac3 = st.columns(3)
+            actions = [
+                ("1순위", p1_title, p1_text, p1_data),
+                ("2순위", p2_title, p2_text, p2_data),
+                ("3순위", p3_title, p3_text, p3_data),
+            ]
+            for col, (rank, title, desc, needed) in zip([ac1, ac2, ac3], actions):
+                with col:
+                    st.markdown(
+                        f"""
+                        <div class="card" style="min-height:245px;">
+                            <div class="label">{rank}</div>
+                            <div style="font-size:19px;font-weight:850;color:#183f6c;margin:8px 0 10px;">{title}</div>
+                            <div style="font-size:14px;line-height:1.7;margin-bottom:15px;">{desc}</div>
+                            <div style="font-size:12px;font-weight:800;color:#71808f;">확인할 데이터</div>
+                            <div style="font-size:13px;margin-top:4px;">{needed}</div>
+                        </div>
+                        """, unsafe_allow_html=True
+                    )
+
+            st.caption(
+                "※ FLOW ACTION은 현재 상권 분석 결과와 사용자가 입력한 점포 상황을 바탕으로 "
+                "확인 순서를 제시합니다. 특정 행동이 매출을 개선한다고 인과적으로 보장하는 처방은 아닙니다."
+            )
+
+        with st.expander("ⓘ 고객 연령대는 왜 묻지 않나요?"):
             st.write(
-                "현재 DEMO 분석 결과에는 상권·업종·시간대별 고객 연령대 소비를 직접 비교할 수 있는 데이터가 없습니다. "
-                "따라서 연령대를 입력받아 맞춤진단에 사용하는 것은 근거를 넘어설 수 있어 현재 버전에서는 제외했습니다. "
-                "향후 연령대별 유동·소비 데이터가 추가되면 확장할 수 있습니다."
+                "현재 DEMO 결과에는 상권·업종·시간대별 고객 연령대 소비를 직접 비교할 수 있는 데이터가 없습니다. "
+                "근거가 없는 맞춤진단을 피하기 위해 현재 버전에서는 연령대를 사용하지 않습니다."
             )
 
     st.divider()
-    st.markdown("### FLOW가 해주는 일")
+    st.markdown("### FLOW는 무엇이 다른가요?")
     st.markdown(
-        "**사람이 많은지를 보는 데서 끝나지 않고, 사람이 있는데도 소비로 연결되지 않는 시간대를 찾고 "
-        "내 가게에서 무엇을 먼저 확인해야 하는지 좁혀줍니다.**"
+        "**유동인구가 많은지를 보여주는 데서 끝나지 않습니다. "
+        "사람의 활동이 소비로 충분히 이어지지 않는 시간대를 찾고, "
+        "비슷한 상권과 비교한 뒤 내 가게에서 무엇부터 확인해야 하는지 좁혀줍니다.**"
     )
     st.caption(
-        "현재 버전은 DEMO 데이터 기반 프로토타입입니다. "
-        "개별 점포의 미래 매출이나 특정 요인의 인과효과를 예측하지 않으며, "
-        "최종 분석 CSV 연결 후 실제 상권·업종 결과로 교체하는 구조입니다."
+        "현재 버전은 DEMO 데이터 기반 프로토타입입니다. 분석지수는 상권 간 상대 비교를 위한 값이며 "
+        "개별 점포의 미래 매출이나 특정 요인의 인과효과를 예측하지 않습니다."
     )
