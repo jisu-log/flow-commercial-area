@@ -396,6 +396,48 @@ if st.session_state.show_result and st.session_state.selected_key:
         conversion_label = "높은 편"
         hero_sub = "전체 수준보다 특정 시간대의 추가 기회와 유사상권의 차이를 확인해볼 수 있습니다."
 
+    # -----------------------------
+    # QUICK SUMMARY
+    # -----------------------------
+    eligible_rank = dead_candidates.copy()
+    eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
+    eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
+
+    if data["consumer_score"] < 50:
+        quick_type = "유동은 충분하지만 소비 연결은 약한 편"
+    elif data["consumer_score"] < 70:
+        quick_type = "유동과 소비 연결은 보통 수준"
+    else:
+        quick_type = "유동이 소비로 비교적 잘 이어지는 편"
+
+    quick_twin = data["twin"] if data["twin"] else "성과가 더 높은 유사상권 없음"
+
+    st.markdown("### 한눈에 보는 FLOW 진단")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">상권 유형</div>
+            <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:9px;">{quick_type}</div>
+            </div>""", unsafe_allow_html=True
+        )
+    with q2:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">가장 먼저 볼 시간</div>
+            <div style="font-size:27px;font-weight:850;color:#a55c00;margin-top:9px;">{dead_time}</div>
+            <div class="subtext">소비 연결 격차가 가장 큰 시간</div>
+            </div>""", unsafe_allow_html=True
+        )
+    with q3:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">비교해볼 상권</div>
+            <div style="font-size:21px;font-weight:850;color:#173c67;margin-top:9px;">{quick_twin}</div>
+            <div class="subtext">구조가 비슷한 비교 기준</div>
+            </div>""", unsafe_allow_html=True
+        )
+
     # 2. ONE-LINE DIAGNOSIS
     st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
 
@@ -498,6 +540,29 @@ if st.session_state.show_result and st.session_state.selected_key:
         """, unsafe_allow_html=True
     )
 
+    st.markdown("#### 시간대별 점검 우선순위")
+    if not eligible_rank.empty:
+        rank_cols = st.columns(min(3, len(eligible_rank)))
+        for i, (_, rr) in enumerate(eligible_rank.head(3).iterrows()):
+            with rank_cols[i]:
+                rank_label = ["1순위", "2순위", "3순위"][i]
+                gap_val = float(rr["gap"])
+                if i == 0:
+                    gap_word = "격차 가장 큼"
+                elif gap_val > 0:
+                    gap_word = "추가 점검"
+                else:
+                    gap_word = "격차 크지 않음"
+                st.markdown(
+                    f"""<div class="card" style="min-height:130px;">
+                    <div class="label">{rank_label}</div>
+                    <div style="font-size:23px;font-weight:850;color:#183f6c;margin:7px 0;">{rr["time"]}</div>
+                    <div class="subtext">{gap_word}</div>
+                    </div>""",
+                    unsafe_allow_html=True
+                )
+        st.caption("※ 00~06 및 활동 관측 근거가 부족한 시간대는 DEAD TIME 우선순위에서 제외합니다.")
+
     with st.expander("ⓘ 그래프는 어떻게 계산됐나요?"):
         st.write(
             f"분석 내부 지수에서는 {dead_time}의 상권 조건을 고려한 상대적 소비 기대수준이 "
@@ -518,52 +583,72 @@ if st.session_state.show_result and st.session_state.selected_key:
         st.markdown(
             f"""
             <div class="twin-box">
-                <div class="label">BEST TWIN</div>
-                <div style="font-size:31px;font-weight:850;color:#173c67;margin:7px 0;">{data["twin"]}</div>
-                <div style="font-size:17px;font-weight:750;color:#18324a;">
-                    우리 상권과 구조는 비슷하지만 소비 연결은 더 활발한 비교상권입니다.
+                <div class="label">왜 {data["twin"]}을 보여주나요?</div>
+                <div style="font-size:25px;font-weight:850;color:#173c67;margin:8px 0;">
+                    우리와 구조는 비슷하지만, 소비 연결은 더 활발하기 때문입니다.
                 </div>
                 <div class="subtext">
-                    유사도 지수 {similarity_text} · 여러 상권 특성의 평균 백분위 차이를 이용한 구조적 유사도
+                    유사도 지수 {similarity_text} · 실제 특성의 일치율이 아니라 구조적 비교를 위한 지수입니다.
                 </div>
             </div>
             """, unsafe_allow_html=True
         )
 
-        st.markdown(
-            f"""
-            <div class="card" style="margin-top:12px;">
-                <div class="label">핵심 비교</div>
-                <div style="font-size:23px;font-weight:850;color:#173c67;margin:6px 0;">
-                    {dead_time}, 유사상권에서는 소비 연결이 더 활발합니다.
-                </div>
-                <div class="subtext">
-                    내부 분석지수 기준 우리 상권 {actual[dead_index]:.1f} · BEST TWIN {twin_conversion_text}
-                    · 차이 {twin_diff_text}
-                </div>
-            </div>
-            """, unsafe_allow_html=True
-        )
+        v1, vm, v2 = st.columns([1, .25, 1])
+        with v1:
+            st.markdown(
+                f"""<div class="card" style="min-height:175px;text-align:center;">
+                <div class="label">우리 상권</div>
+                <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{area}</div>
+                <div style="font-size:15px;">{dead_time} 소비 연결</div>
+                <div style="font-size:22px;font-weight:850;color:#a55c00;margin-top:6px;">상대적으로 낮음</div>
+                </div>""", unsafe_allow_html=True
+            )
+        with vm:
+            st.markdown("<div style='text-align:center;font-size:24px;font-weight:800;padding-top:70px;'>VS</div>", unsafe_allow_html=True)
+        with v2:
+            st.markdown(
+                f"""<div class="card" style="min-height:175px;text-align:center;">
+                <div class="label">BEST TWIN</div>
+                <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
+                <div style="font-size:15px;">같은 비교 기준</div>
+                <div style="font-size:22px;font-weight:850;color:#245B91;margin-top:6px;">소비 연결 더 활발</div>
+                </div>""", unsafe_allow_html=True
+            )
+
+        with st.expander("ⓘ 분석값으로 비교하기"):
+            st.write(
+                f"내부 분석지수 기준 우리 상권 {dead_time} 소비 수준은 {actual[dead_index]:.1f}, "
+                f"BEST TWIN 비교값은 {twin_conversion_text}, 차이는 {twin_diff_text}입니다. "
+                "이 값은 원화 매출이나 실제 매출 증가율이 아닙니다."
+            )
 
         if data["why"]:
-            st.markdown("#### 두 상권에서 눈에 띄는 차이")
+            st.markdown("#### 결과가 다른 이유를 살펴볼 비교 단서")
             why_cols = st.columns(len(data["why"]))
+            positive_features = []
             for i, (feature, diff, unit) in enumerate(data["why"]):
+                if diff > 0:
+                    positive_features.append((feature, diff, unit))
                 with why_cols[i]:
-                    direction = "더 낮습니다" if diff < 0 else "더 높습니다"
+                    direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
                     value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
                     st.markdown(
-                        f"""
-                        <div class="card">
-                            <div class="label">비교 포인트 {i+1}</div>
-                            <div style="font-size:19px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
-                            <div style="font-size:15px;line-height:1.6;">
-                                우리 상권이 BEST TWIN보다 <b>{value}{unit} {direction}</b>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True
+                        f"""<div class="card" style="min-height:155px;">
+                        <div class="label">비교 단서 {i+1}</div>
+                        <div style="font-size:18px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
+                        <div style="font-size:14px;line-height:1.6;"><b>{direction}</b><br>{value}{unit} 차이</div>
+                        </div>""", unsafe_allow_html=True
                     )
-            st.caption("※ 위 차이는 원인으로 확정한 결과가 아니라, 추가로 살펴볼 비교 포인트입니다.")
+
+            if positive_features:
+                pf, pdiff, punit = positive_features[0]
+                st.success(
+                    f"**우리 상권이 이미 가진 특징:** BEST TWIN과 비교하면 `{pf}`은 우리 상권이 더 높게 나타납니다. "
+                    "이는 매출 성과의 원인이라는 뜻이 아니라, 현재 상권이 가진 구조적 특징입니다."
+                )
+
+            st.caption("※ 위 차이는 소비성과 차이의 원인으로 확정한 결과가 아니라, 추가로 확인할 비교 단서입니다.")
 
         with st.expander("ⓘ BEST TWIN과 유사도는 어떻게 해석하나요?"):
             st.write(
@@ -752,6 +837,45 @@ if st.session_state.show_result and st.session_state.selected_key:
                 """,
                 unsafe_allow_html=True
             )
+
+            st.markdown("### 직접 점검 체크리스트")
+            st.caption("아래 항목은 FLOW가 이미 보유한 값이 아니라, 사장님이 점포에서 직접 확인할 수 있는 다음 단계입니다.")
+
+            st.checkbox(f"{store_weak} 매장 앞 통행 인원을 같은 시간 간격으로 기록했다", key="check_traffic")
+            st.checkbox(f"{store_weak} 실제 입점 인원 또는 방문자 수를 기록했다", key="check_entry")
+            st.checkbox("평소 잘되는 시간대도 같은 방식으로 기록했다", key="check_normal")
+            st.checkbox("두 시간대의 주문건수 또는 POS 기록을 확인했다", key="check_orders")
+
+            with st.expander("간단 비교 계산기"):
+                st.write("직접 기록한 값이 있다면 취약시간과 평소 잘되는 시간의 입점률을 간단히 비교할 수 있습니다.")
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    st.markdown(f"**취약시간 · {store_weak}**")
+                    weak_pass = st.number_input("통행 인원", min_value=0, value=0, step=1, key="weak_pass")
+                    weak_enter = st.number_input("입점 인원", min_value=0, value=0, step=1, key="weak_enter")
+                with cc2:
+                    st.markdown("**평소 잘되는 시간대**")
+                    normal_pass = st.number_input("통행 인원 ", min_value=0, value=0, step=1, key="normal_pass")
+                    normal_enter = st.number_input("입점 인원 ", min_value=0, value=0, step=1, key="normal_enter")
+
+                if weak_pass > 0 and normal_pass > 0:
+                    weak_rate = weak_enter / weak_pass * 100
+                    normal_rate = normal_enter / normal_pass * 100
+                    diff_rate = weak_rate - normal_rate
+                    r1, r2, r3 = st.columns(3)
+                    r1.metric("취약시간 입점률", f"{weak_rate:.1f}%")
+                    r2.metric("평소시간 입점률", f"{normal_rate:.1f}%")
+                    r3.metric("차이", f"{diff_rate:+.1f}%p")
+                    if diff_rate < 0:
+                        st.info(
+                            f"취약시간의 입점률이 평소시간보다 {abs(diff_rate):.1f}%p 낮습니다. "
+                            "이 결과는 사용자가 직접 입력한 점포 기록의 단순 비교이며, FLOW의 상권 분석값이나 인과분석 결과는 아닙니다."
+                        )
+                    else:
+                        st.info(
+                            "입점률만 보면 취약시간이 더 낮지 않습니다. 주문 전환이나 객단가 등 다른 단계를 추가로 확인해볼 수 있습니다. "
+                            "이 결과는 사용자가 입력한 점포 기록의 단순 비교입니다."
+                        )
 
             with st.expander("ⓘ 점포 데이터가 연결되면 무엇이 달라지나요?"):
                 st.write(
