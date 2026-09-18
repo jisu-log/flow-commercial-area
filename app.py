@@ -4,6 +4,7 @@ from streamlit_folium import st_folium
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import re
 
 st.set_page_config(
     page_title="FLOW",
@@ -250,8 +251,25 @@ div[data-testid="stButton"] > button[kind="primary"]{background:#087443;border-c
 </style>
 """, unsafe_allow_html=True)
 
+
+st.markdown('''
+<style>
+/* FLOW schematic maps: reference-image-like clean white cards */
+div[data-testid="stIFrame"] { border-radius:16px; }
+.flow-step-card iframe { background:#ffffff !important; }
+</style>
+''', unsafe_allow_html=True)
+
 st.markdown('<div class="section-title">1. 분석할 지역을 선택해주세요</div>', unsafe_allow_html=True)
 st.caption("서울시 자치구 → 행정동 → 골목상권 순서로 좁혀가며 내 상권을 찾습니다.")
+st.markdown("""
+<div style="display:flex;gap:8px;align-items:center;margin:10px 0 20px;font-size:13px;font-weight:800;color:#5f7169">
+<span style="background:#eaf6ef;color:#087443;padding:7px 12px;border-radius:999px">① 서울 자치구</span>
+<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">② 행정동</span>
+<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">③ 골목상권</span>
+<span>→</span><span style="background:#f2f5f3;padding:7px 12px;border-radius:999px">④ 업종</span>
+</div>
+""", unsafe_allow_html=True)
 
 available_codes = set(area_df["area_code"].astype(str).unique())
 explore_df = map_df[map_df["area_code"].astype(str).isin(available_codes)].copy()
@@ -265,10 +283,14 @@ st.markdown('<div class="flow-step-card">', unsafe_allow_html=True)
 st.markdown('<span class="flow-step-no">1</span><b style="font-size:20px">서울시 자치구 선택</b>', unsafe_allow_html=True)
 st.caption("서울 약도에서 원하는 자치구를 눌러주세요.")
 
-gu_map = folium.Map(location=[37.5665,126.9780], zoom_start=10, tiles=None, zoom_control=False, dragging=False, scrollWheelZoom=False, doubleClickZoom=False)
+gu_map = folium.Map(location=[37.5665,126.9780], zoom_start=10.65, tiles=None, zoom_control=False, dragging=False, scrollWheelZoom=False, doubleClickZoom=False, attributionControl=False, prefer_canvas=True)
+folium.Rectangle(
+    bounds=[[37.40,126.72],[37.72,127.20]],
+    color="#ffffff", fill=True, fill_color="#ffffff", fill_opacity=1, weight=0
+).add_to(gu_map)
 folium.GeoJson(
     SEOUL_GU_GEOJSON,
-    style_function=lambda f: {"fillColor":"#d9eee2" if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else "#ffffff","color":"#6ca287","weight":2.3 if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else 1.3,"fillOpacity":.98},
+    style_function=lambda f: {"fillColor":"#dcefe4" if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else "#fbfcfb","color":"#9aa8a1","weight":2.4 if f["properties"].get("SIG_KOR_NM")==st.session_state.selected_district else 1.15,"fillOpacity":1},
     highlight_function=lambda f: {"fillColor":"#cce9d8","color":"#087443","weight":2.5,"fillOpacity":1},
     tooltip=folium.GeoJsonTooltip(fields=["SIG_KOR_NM"],aliases=[""],labels=False,sticky=True,style="background:white;color:#173c67;font-size:14px;font-weight:800;padding:6px 9px;border:1px solid #d8e4de;border-radius:7px;")
 ).add_to(gu_map)
@@ -303,19 +325,30 @@ if gu:
     st.caption("상권이 너무 많지 않도록 행정동을 먼저 선택합니다.")
 
     dong_summary=(gu_df.dropna(subset=["dong"]).groupby("dong",as_index=False).agg(lat=("lat","mean"),lon=("lon","mean"),n=("area_code","nunique")))
-    dm=folium.Map(location=[float(gu_df.lat.mean()),float(gu_df.lon.mean())],zoom_start=13,tiles=None,zoom_control=False,dragging=False)
-    for r in dong_summary.itertuples(index=False):
-        sel=r.dong==st.session_state.selected_dong
-        folium.CircleMarker([r.lat,r.lon],radius=15 if sel else 12,color="#087443",weight=2,fill=True,fill_color="#087443" if sel else "#dff1e7",fill_opacity=1,tooltip=f"{r.dong} · 분석 가능 상권 {r.n}곳").add_to(dm)
-        folium.Marker([r.lat,r.lon],icon=folium.DivIcon(html=f'<div style="white-space:nowrap;transform:translate(-50%,15px);font-size:12px;font-weight:800;color:#29483d">{r.dong}</div>')).add_to(dm)
-    st_folium(dm,height=300,use_container_width=True,returned_objects=[],key=f"dong_diagram_{gu}")
-
     dongs=sorted(dong_summary["dong"].tolist())
-    dong_pick=st.selectbox("행정동 선택",["행정동을 선택해주세요"]+dongs,key=f"dong_select_{gu}")
-    if dong_pick!="행정동을 선택해주세요" and dong_pick!=st.session_state.selected_dong:
-        st.session_state.selected_dong=dong_pick
-        st.session_state.map_selected_area_code=None
-        st.rerun()
+
+    st.markdown("""
+    <div style="background:#fbfcfb;border:1px solid #e2e8e5;border-radius:16px;
+                padding:16px 18px;margin:10px 0 14px">
+      <div style="font-size:13px;color:#66766f;margin-bottom:4px">행정동을 선택하면 해당 동의 분석 가능 상권만 표시됩니다.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    cols=st.columns(4)
+    for i,dname in enumerate(dongs):
+        count=int(dong_summary.loc[dong_summary["dong"]==dname,"n"].iloc[0])
+        with cols[i%4]:
+            if st.button(f"{dname} · 상권 {count}곳", key=f"dong_btn_{gu}_{dname}", use_container_width=True):
+                st.session_state.selected_dong=dname
+                st.session_state.map_selected_area_code=None
+                st.rerun()
+
+    with st.expander("목록으로 행정동 선택"):
+        dong_pick=st.selectbox("행정동",["행정동을 선택해주세요"]+dongs,key=f"dong_select_{gu}")
+        if dong_pick!="행정동을 선택해주세요" and dong_pick!=st.session_state.selected_dong:
+            st.session_state.selected_dong=dong_pick
+            st.session_state.map_selected_area_code=None
+            st.rerun()
     st.markdown('</div>',unsafe_allow_html=True)
 
 dong=st.session_state.selected_dong
@@ -327,7 +360,13 @@ if gu and dong:
     st.markdown(f'<span class="flow-step-no">3</span><b style="font-size:20px">{dong}의 분석 가능한 상권</b>',unsafe_allow_html=True)
     st.caption(f"상권 {dong_df.area_code.nunique()}곳만 표시합니다. 파란 점을 누르면 바로 선택됩니다.")
 
-    am=folium.Map(location=[float(dong_df.lat.mean()),float(dong_df.lon.mean())],zoom_start=15,tiles="OpenStreetMap",control_scale=False)
+    am=folium.Map(location=[float(dong_df.lat.mean()),float(dong_df.lon.mean())],zoom_start=15,tiles=None,control_scale=False)
+    folium.TileLayer(
+        tiles="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr="© OpenStreetMap contributors",
+        name="거리 지도",
+        opacity=0.58
+    ).add_to(am)
     for r in dong_df.itertuples(index=False):
         code=str(r.area_code); sel=code==str(st.session_state.map_selected_area_code)
         folium.CircleMarker([r.lat,r.lon],radius=10 if sel else 7,color="#087443" if sel else "#1769aa",weight=3 if sel else 2,fill=True,fill_color="#0b8b53" if sel else "#3c86bd",fill_opacity=.92,tooltip=f"{r.area_name} 〔{code}〕").add_to(am)
