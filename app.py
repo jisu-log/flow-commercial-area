@@ -353,14 +353,14 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
 
     time_df = pd.DataFrame({
         "시간대": data["times"],
-        "상권 활동·소비 여건": data["potential"],
+        "소비가 일어날 여건": data["potential"],
         "실제 소비 수준": data["actual"]
     })
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=time_df["시간대"], y=time_df["상권 활동·소비 여건"],
-        name="상권 활동·소비 여건", marker_color="#A8C7E8"
+        x=time_df["시간대"], y=time_df["소비가 일어날 여건"],
+        name="소비가 일어날 여건", marker_color="#A8C7E8"
     ))
     fig.add_trace(go.Bar(
         x=time_df["시간대"], y=time_df["실제 소비 수준"],
@@ -385,7 +385,7 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
         f"""
         <div style="background:#eef6ff;border-left:4px solid #245B91;border-radius:8px;padding:14px 16px;margin-top:2px;">
             <b>{dead_time}을 먼저 보세요.</b><br>
-            다른 시간대보다 상권의 활동·소비 여건과 실제 소비 사이의 간격이 크게 나타납니다.
+            다른 시간대보다 소비가 일어날 여건과 실제 소비 사이의 격차가 가장 크게 나타납니다.
             FLOW는 이를 '매출이 오를 시간'이 아니라 <b>우선 점검할 시간</b>으로 해석합니다.
         </div>
         """, unsafe_allow_html=True
@@ -410,7 +410,7 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
                 우리 상권과 구조는 비슷하지만 소비 연결은 더 활발한 비교상권입니다.
             </div>
             <div class="subtext">
-                상권 구조 유사도 {data["similarity"]}% · 비슷한 조건에서도 다른 결과가 나타나는 지점을 찾기 위한 비교 기준
+                유사도 지수 {data["similarity"]}% · 비슷한 조건에서도 다른 결과가 나타나는 지점을 찾기 위한 비교 기준
             </div>
         </div>
         """, unsafe_allow_html=True
@@ -459,11 +459,12 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
     # 5. STORE DIAGNOSIS
     st.markdown('<div class="section-title">5. 우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
     st.write(
-        "상권의 문제와 내 가게의 문제는 다를 수 있습니다. "
-        "간단한 매장 상황을 입력하면 **상권 결과와 비교해 확인 순서**를 좁혀드립니다."
+        "여기부터는 **상권 분석 결과와 사장님의 응답을 함께 비교**합니다. "
+        "FLOW가 현재 보유한 것은 상권 단위 데이터이며, 개별 점포의 POS·입점 데이터는 아직 연결되어 있지 않습니다. "
+        "따라서 아래 결과는 원인을 확정하는 처방이 아니라 **내 가게에서 다음으로 무엇을 확인할지 정하는 점검 가이드**입니다."
     )
 
-    compare_store = st.checkbox("내 가게 맞춤진단 시작하기", key="compare_store")
+    compare_store = st.checkbox("내 가게 맞춤 점검 시작하기", key="compare_store")
 
     if compare_store:
         store_weak = st.selectbox(
@@ -494,102 +495,155 @@ if st.session_state.show_result and st.session_state.selected_key in demo_data:
             same_time = store_weak == dead_time
 
             if same_time:
-                result_title = "상권과 내 가게의 취약 시간이 같습니다."
+                result_title = "상권과 내 가게가 같은 시간대에서 약합니다."
                 result_desc = (
-                    f"상권에서도 {dead_time}의 소비공백이 가장 크고 내 가게도 같은 시간이 가장 약합니다. "
-                    "점포만의 문제라고 보기 전에 상권 공통 패턴과 점포 운영을 함께 확인하는 것이 좋습니다."
+                    f"상권에서도 {dead_time}의 소비공백이 가장 크고, 사장님이 입력한 가게의 취약시간도 {store_weak}입니다. "
+                    "점포만의 문제로 단정하기보다 상권 공통 패턴과 점포 운영을 함께 비교해볼 필요가 있습니다."
                 )
+                badge = "상권 공통 패턴 가능성도 함께 확인"
             else:
-                result_title = "상권보다 내 가게의 개별 문제를 먼저 볼 필요가 있습니다."
+                result_title = "상권보다 내 가게의 개별 문제를 먼저 확인해보세요."
                 result_desc = (
-                    f"상권은 {dead_time}이 가장 취약하지만 내 가게는 {store_weak}이 가장 약합니다. "
-                    "상권 평균과 다른 패턴이므로 점포의 운영·입점·구매 과정을 먼저 확인하는 편이 타당합니다."
+                    f"상권 전체에서는 {dead_time}의 소비공백이 가장 크지만, 사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
+                    "상권 평균과 다른 패턴이므로 먼저 점포 내부의 운영·입점·구매 과정을 비교해보는 편이 타당합니다."
                 )
+                badge = "점포 개별 패턴 우선 점검"
 
-            st.markdown("### 맞춤진단 결과")
+            st.markdown("### 맞춤 점검 결과")
             st.markdown(
                 f"""
                 <div class="diagnosis-box">
-                    <div class="label">MY STORE × FLOW</div>
+                    <div class="label">MY STORE × FLOW · {badge}</div>
                     <div style="font-size:25px;font-weight:850;color:#173c67;margin:7px 0;">{result_title}</div>
                     <div class="subtext">{result_desc}</div>
                 </div>
                 """, unsafe_allow_html=True
             )
 
-            # Build three prioritized actions from user's own answers.
+            # Priority 1: stage-based check
             if store_stage == "사람은 지나가지만 가게로 잘 들어오지 않아요":
-                p1_title = f"{store_weak} 입점 전환 확인"
-                p1_text = "매장 앞을 지나는 사람 대비 실제로 들어오는 사람의 비율을 먼저 확인하세요."
-                p1_data = "통행량 · 입점 수 · 입점률"
+                p1_title = f"{store_weak} 입점률을 비교해보세요"
+                p1_text = (
+                    f"{store_weak}의 '매장 앞 통행 인원 대비 실제 입점 인원'을 기록하고, "
+                    "평소 잘되는 시간대의 입점률과 비교해보세요. 취약시간에만 입점률이 크게 낮다면 "
+                    "상권 전체보다 점포 앞 접점에서 문제가 생기는지 확인할 단서가 됩니다."
+                )
+                p1_how = "직접 기록: 매장 앞 통행 인원 ÷ 실제 입점 인원"
             elif store_stage == "손님은 들어오지만 주문·구매가 기대보다 적어요":
-                p1_title = f"{store_weak} 구매 전환 확인"
-                p1_text = "방문 이후 주문으로 이어지는 과정과 객단가를 먼저 확인하세요."
-                p1_data = "방문자 수 · 주문건수 · 객단가"
+                p1_title = f"{store_weak} 구매전환을 비교해보세요"
+                p1_text = (
+                    f"{store_weak}의 방문자 수와 실제 주문건수를 기록하고 평소 잘되는 시간대와 비교해보세요. "
+                    "방문은 비슷한데 주문 비율만 낮다면 방문 이후 주문 단계에서 문제가 생기는지 살펴볼 수 있습니다."
+                )
+                p1_how = "직접 기록: 방문자 수 · 주문건수 · 가능하면 객단가"
             elif store_stage == "주변에 사람 자체가 적어요":
-                p1_title = f"{store_weak} 실제 매장 앞 유동 확인"
-                p1_text = "상권 전체가 아니라 내 매장 앞의 실제 통행량이 낮은지 먼저 확인하세요."
-                p1_data = "매장 앞 통행량 · 입점 수"
+                p1_title = f"{store_weak} 매장 앞 유동을 비교해보세요"
+                p1_text = (
+                    f"상권 전체 유동과 실제 매장 앞 유동은 다를 수 있습니다. {store_weak}의 매장 앞 통행 인원을 "
+                    "평소 잘되는 시간대와 같은 방식으로 세어 비교해보세요."
+                )
+                p1_how = "직접 기록: 동일 시간 간격의 매장 앞 통행 인원"
             else:
-                p1_title = f"{store_weak} 기본 운영지표 확인"
-                p1_text = "현재 응답만으로 막히는 단계를 특정하기 어려워 기본 지표부터 확인하는 것이 좋습니다."
-                p1_data = "통행량 · 입점 수 · 주문건수 · 객단가"
+                p1_title = f"{store_weak} 기본 흐름부터 기록해보세요"
+                p1_text = (
+                    "현재 응답만으로 어느 단계에서 막히는지 특정하기 어렵습니다. "
+                    "통행 → 입점 → 주문의 세 단계를 같은 시간대에 기록하면 다음 점검 대상을 좁힐 수 있습니다."
+                )
+                p1_how = "직접 기록: 통행 인원 · 입점 인원 · 주문건수"
 
+            # Priority 2: channel-based check
             if store_channel == "포장 중심":
-                p2_title = "포장 고객 동선 확인"
-                p2_text = "포장 중심 매장이므로 메뉴 확인 → 주문 → 수령 과정에서 불편이나 이탈이 있는지 확인하세요."
-                p2_data = "포장 주문건수 · 대기시간 · 주문취소"
+                p2_title = "포장 주문 흐름을 따로 보세요"
+                p2_text = (
+                    "포장 중심 매장은 매장 방문 전체와 포장 주문을 섞어 보면 문제가 가려질 수 있습니다. "
+                    "취약시간과 정상시간의 포장 주문건수와 대기시간을 같은 기준으로 비교해보세요."
+                )
+                p2_how = "POS/직접 확인: 포장 주문건수 · 평균 대기시간"
             elif store_channel == "배달 중심":
-                p2_title = "배달 주문 흐름 확인"
-                p2_text = "배달 중심 매장이므로 해당 시간대의 노출·주문·취소 흐름을 따로 확인하세요."
-                p2_data = "배달 노출 · 주문건수 · 취소건수"
+                p2_title = "배달 주문 흐름을 따로 보세요"
+                p2_text = (
+                    "배달 중심 매장은 거리 유동만으로 설명하기 어렵습니다. "
+                    "취약시간과 정상시간의 배달 주문건수·취소건수를 분리해 비교해보세요."
+                )
+                p2_how = "배달앱/POS 확인: 주문건수 · 취소건수"
             elif store_channel == "매장 중심":
-                p2_title = "매장 방문 흐름 확인"
-                p2_text = "매장 중심 매장이므로 입점 이후 주문까지의 흐름을 시간대별로 확인하세요."
-                p2_data = "입점 수 · 주문건수 · 회전"
+                p2_title = "입점 이후 주문까지 비교하세요"
+                p2_text = (
+                    "매장 중심이라면 취약시간과 정상시간에서 입점 인원 대비 주문건수가 달라지는지 확인하세요. "
+                    "입점은 비슷한데 주문만 줄어드는지 구분하는 것이 핵심입니다."
+                )
+                p2_how = "직접/POS 확인: 입점 인원 · 주문건수"
             elif store_channel == "혼합형":
-                p2_title = "판매 채널별로 나눠 확인"
-                p2_text = "매장·포장·배달을 합쳐 보면 문제가 가려질 수 있어 채널별 주문 흐름을 분리해 확인하세요."
-                p2_data = "매장 · 포장 · 배달 주문건수"
+                p2_title = "판매 채널을 나눠 비교하세요"
+                p2_text = (
+                    "매장·포장·배달을 합산하면 어느 채널에서 약해지는지 보이지 않습니다. "
+                    "취약시간과 정상시간의 주문건수를 채널별로 나눠 비교해보세요."
+                )
+                p2_how = "POS 확인: 매장 · 포장 · 배달 주문건수"
             else:
-                p2_title = "판매 방식부터 구분"
-                p2_text = "어떤 판매 방식에서 매출이 발생하는지부터 구분하면 취약시간의 원인을 더 좁힐 수 있습니다."
-                p2_data = "매장 · 포장 · 배달 비중"
+                p2_title = "매출이 생기는 채널부터 구분하세요"
+                p2_text = (
+                    "매장·포장·배달 중 어느 방식이 매출의 중심인지 먼저 나누어 보면 "
+                    "취약시간의 원인을 더 구체적으로 좁힐 수 있습니다."
+                )
+                p2_how = "POS 확인: 채널별 주문건수 또는 매출 비중"
 
+            # Priority 3: relation to area pattern
             if same_time:
-                p3_title = f"{dead_time} 상권 공통 패턴과 함께 비교"
-                p3_text = f"내 가게와 상권의 취약시간이 같으므로 {data['twin']}의 같은 시간대와 비교할 가치가 있습니다."
-                p3_data = "내 점포 지표 · 상권 지표 · BEST TWIN"
+                p3_title = f"{dead_time}을 비교상권과 함께 보세요"
+                p3_text = (
+                    f"내 가게와 상권의 취약시간이 모두 {dead_time}입니다. "
+                    f"FLOW가 이미 보유한 상권 데이터에서는 {data['twin']}이 비슷한 조건에서 소비 연결이 더 활발했습니다. "
+                    "점포 기록을 확보한 뒤 이 시간대의 차이를 우선 비교해볼 가치가 있습니다."
+                )
+                p3_how = "FLOW 보유: 상권 시간대 결과 · BEST TWIN 비교"
             else:
-                p3_title = f"상권의 {dead_time} 대응은 후순위"
-                p3_text = f"현재 내 가게는 {store_weak}이 더 약하므로 상권 전체의 {dead_time}보다 내 점포 문제를 먼저 확인하세요."
-                p3_data = "내 점포 시간대별 운영지표"
+                p3_title = f"상권의 {dead_time} 대응은 그다음입니다"
+                p3_text = (
+                    f"현재 사장님 가게는 {store_weak}이 더 약하다고 응답했습니다. "
+                    f"먼저 점포 기록으로 {store_weak}의 문제를 확인하고, 이후 상권 공통 취약시간인 {dead_time} 대응을 검토하세요."
+                )
+                p3_how = "FLOW 보유: 상권 취약시간 / 점포 데이터: 사장님 확인 필요"
 
             st.markdown("### FLOW ACTION · 확인 순서")
             ac1, ac2, ac3 = st.columns(3)
             actions = [
-                ("1순위", p1_title, p1_text, p1_data),
-                ("2순위", p2_title, p2_text, p2_data),
-                ("3순위", p3_title, p3_text, p3_data),
+                ("1순위", p1_title, p1_text, p1_how),
+                ("2순위", p2_title, p2_text, p2_how),
+                ("3순위", p3_title, p3_text, p3_how),
             ]
-            for col, (rank, title, desc, needed) in zip([ac1, ac2, ac3], actions):
+            for col, (rank, title, desc, how) in zip([ac1, ac2, ac3], actions):
                 with col:
                     st.markdown(
                         f"""
-                        <div class="card" style="min-height:245px;">
+                        <div class="card" style="min-height:285px;">
                             <div class="label">{rank}</div>
                             <div style="font-size:19px;font-weight:850;color:#183f6c;margin:8px 0 10px;">{title}</div>
-                            <div style="font-size:14px;line-height:1.7;margin-bottom:15px;">{desc}</div>
-                            <div style="font-size:12px;font-weight:800;color:#71808f;">확인할 데이터</div>
-                            <div style="font-size:13px;margin-top:4px;">{needed}</div>
+                            <div style="font-size:14px;line-height:1.72;margin-bottom:16px;">{desc}</div>
+                            <div style="font-size:12px;font-weight:850;color:#71808f;">어떻게 확인하나요?</div>
+                            <div style="font-size:13px;line-height:1.55;margin-top:5px;">{how}</div>
                         </div>
                         """, unsafe_allow_html=True
                     )
 
-            st.caption(
-                "※ FLOW ACTION은 현재 상권 분석 결과와 사용자가 입력한 점포 상황을 바탕으로 "
-                "확인 순서를 제시합니다. 특정 행동이 매출을 개선한다고 인과적으로 보장하는 처방은 아닙니다."
+            st.markdown(
+                """
+                <div style="background:#eef6ff;border-left:4px solid #245B91;border-radius:8px;padding:14px 16px;margin-top:12px;">
+                    <b>현재 FLOW가 직접 분석한 데이터와 사장님이 추가로 확인할 데이터는 다릅니다.</b><br>
+                    FLOW는 현재 상권 단위의 유동·소비·시간대·비교상권 데이터를 분석합니다.
+                    입점자 수, 입점률, 주문건수, 객단가 같은 개별 점포 데이터는 현재 연결되어 있지 않아
+                    위 ACTION에서는 <b>사장님이 다음으로 확인할 항목과 비교 방법</b>을 안내합니다.
+                </div>
+                """,
+                unsafe_allow_html=True
             )
+
+            with st.expander("ⓘ 점포 데이터가 연결되면 무엇이 달라지나요?"):
+                st.write(
+                    "향후 POS·주문·입점 데이터가 연결되면 사용자가 직접 기록하지 않아도 "
+                    "시간대별 입점률, 구매전환, 채널별 주문 흐름 등을 상권 패턴과 자동 비교하는 방식으로 확장할 수 있습니다. "
+                    "현재 프로토타입은 그 이전 단계인 '어디를 먼저 확인해야 하는지'를 좁혀주는 기능입니다."
+                )
 
         with st.expander("ⓘ 고객 연령대는 왜 묻지 않나요?"):
             st.write(
