@@ -41,7 +41,6 @@ except Exception as e:
 st.markdown("""
 <style>
 
-/* 전체 배경 */
 .stApp {
     background-color: #F7F9FC;
 }
@@ -52,20 +51,19 @@ st.markdown("""
     padding-bottom: 4rem;
 }
 
-/* Metric 카드 */
 [data-testid="stMetric"] {
-    background: #FFFFFF;
-    border: 1px solid #E3EAF1;
-    padding: 22px;
-    border-radius: 18px;
-    box-shadow: 0px 4px 16px rgba(23,79,130,0.05);
+    background: white;
+    border: 1px solid #E2EAF1;
+    padding: 20px;
+    border-radius: 17px;
+    box-shadow: 0 4px 14px rgba(20,60,100,0.05);
 }
 
 [data-testid="stMetricLabel"] {
     font-weight: 700;
 }
 
-/* 버튼 강제 파랑 */
+/* BLUE BUTTON */
 div.stButton > button,
 div.stButton > button[kind="primary"] {
     background-color: #174F82 !important;
@@ -73,68 +71,83 @@ div.stButton > button[kind="primary"] {
     border: 1px solid #174F82 !important;
     border-radius: 12px !important;
     font-weight: 700 !important;
-    min-height: 50px;
+    min-height: 49px;
 }
 
 div.stButton > button:hover,
 div.stButton > button[kind="primary"]:hover {
-    background-color: #21689F !important;
-    border-color: #21689F !important;
+    background-color: #24699F !important;
+    border-color: #24699F !important;
     color: white !important;
 }
 
-/* 링크 아이콘 없는 일반 소제목 */
-.flow-mini-title {
-    font-size: 18px;
-    font-weight: 750;
+/* heading 대신 사용 → 링크 아이콘 방지 */
+.flow-title {
+    font-size: 20px;
+    font-weight: 800;
     color: #183B5B;
-    margin-top: 8px;
+    margin-top: 13px;
     margin-bottom: 5px;
 }
 
-.flow-label {
-    font-size: 13px;
-    color: #6E7D8C;
-    font-weight: 700;
+.flow-small-title {
+    font-size: 17px;
+    font-weight: 750;
+    color: #183B5B;
     margin-bottom: 4px;
 }
 
-.flow-result {
-    font-size: 17px;
-    font-weight: 650;
-    color: #263C50;
+.flow-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #72808E;
+    margin-bottom: 4px;
 }
 
 .flow-note {
-    font-size: 13px;
     color: #6B7885;
+    font-size: 13px;
     line-height: 1.7;
 }
 
-.flow-highlight {
+.flow-blue {
     background: #EDF5FB;
-    border: 1px solid #D7E6F2;
-    border-radius: 14px;
-    padding: 17px 19px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+    border: 1px solid #D6E5F1;
+    border-radius: 15px;
+    padding: 18px 20px;
+    margin: 10px 0;
 }
 
-.flow-warning {
-    background: #FFF8EB;
-    border: 1px solid #F0D6A6;
-    border-radius: 14px;
-    padding: 17px 19px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+.flow-yellow {
+    background: #FFF8EA;
+    border: 1px solid #F0D7A6;
+    border-radius: 15px;
+    padding: 18px 20px;
+    margin: 10px 0;
 }
 
-.flow-summary {
-    background: #FFFFFF;
-    border: 1px solid #E3EAF1;
+.flow-green {
+    background: #EFF8F3;
+    border: 1px solid #D5E9DD;
+    border-radius: 15px;
+    padding: 18px 20px;
+    margin: 10px 0;
+}
+
+.flow-card {
+    background: white;
+    border: 1px solid #E2EAF1;
     border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 12px;
+    padding: 18px;
+    min-height: 145px;
+}
+
+.type-box {
+    background: #EAF3FA;
+    border-left: 5px solid #174F82;
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin: 14px 0;
 }
 
 </style>
@@ -160,7 +173,7 @@ def valid_text(value):
     )
 
 
-def level_text(score):
+def level(score):
     if score < 30:
         return "낮은 편"
     elif score < 70:
@@ -169,14 +182,9 @@ def level_text(score):
         return "높은 편"
 
 
-def percentile_sentence(score):
+def percentile_text(score):
     rank = int(round(score))
-
-    if rank <= 0:
-        rank = 1
-    if rank >= 100:
-        rank = 100
-
+    rank = max(1, min(rank, 100))
     return f"같은 업종 상권 100곳 중 약 {rank}번째 수준"
 
 
@@ -205,7 +213,7 @@ def format_difference(value, unit):
     return f"{abs(value):.1f}{unit}"
 
 
-def direction_sentence(value):
+def direction(value):
     value = float(value)
 
     if value > 0:
@@ -216,6 +224,51 @@ def direction_sentence(value):
         return "두 상권이 비슷해요"
 
 
+# ---------------------------------------------------------
+# 상권 유형 분류
+#
+# 70점 이상 = 상대적으로 높은 수준
+# 30점 미만 = 상대적으로 낮은 수준
+# 중간 구간은 보통으로 처리
+# ---------------------------------------------------------
+def diagnose_type(traffic, flow):
+
+    if traffic >= 70 and flow < 70:
+        return (
+            "전환 개선형",
+            "사람의 흐름은 충분하지만 소비 연결 성과는 그에 비해 높지 않은 상권입니다.",
+            "새로운 유동을 더 만드는 것보다 현재 존재하는 유동이 실제 소비로 연결되는 과정부터 살펴볼 가치가 있습니다."
+        )
+
+    elif traffic >= 70 and flow >= 70:
+        return (
+            "강점 유지형",
+            "사람의 흐름도 많고 소비 연결 성과도 높은 상권입니다.",
+            "현재 강점이 어느 시간대에서 만들어지는지 확인하고 유지하는 방향이 중요합니다."
+        )
+
+    elif traffic < 30 and flow < 70:
+        return (
+            "유입·전환 점검형",
+            "사람의 흐름 자체가 적고 소비 연결 성과도 높지 않은 상권입니다.",
+            "유입 부족과 소비 연결 문제를 함께 살펴볼 필요가 있습니다."
+        )
+
+    elif traffic < 70 and flow >= 70:
+        return (
+            "효율형",
+            "유동 규모가 아주 높지는 않지만 소비 연결 성과는 높은 상권입니다.",
+            "현재 방문객을 소비로 연결하는 힘이 상대적으로 좋은 상권입니다."
+        )
+
+    else:
+        return (
+            "균형 점검형",
+            "유동과 소비 연결이 모두 중간 범위에 위치한 상권입니다.",
+            "전체 점수보다 시간대별 소비공백과 유사상권 비교를 중심으로 살펴보는 것이 좋습니다."
+        )
+
+
 # =========================================================
 # HERO
 # =========================================================
@@ -223,34 +276,35 @@ st.title("🌊 FLOW")
 st.subheader("사람은 많은데, 왜 소비로 이어지지 않을까?")
 
 st.write(
-    "FLOW는 단순히 사람이 많은 상권을 찾는 서비스가 아닙니다. "
-    "사람의 흐름이 실제 소비로 얼마나 이어지고 있는지 살펴보고, "
-    "놓치고 있는 시간대와 비교해볼 만한 유사상권을 찾아줍니다."
+    "FLOW는 서울 골목상권의 **사람 흐름 → 실제 소비 연결**을 분석합니다. "
+    "내 상권에서 놓치고 있는 시간대를 찾고, "
+    "구조는 비슷하지만 소비 연결이 더 잘되는 상권과 비교해 "
+    "무엇을 먼저 확인해야 하는지 알려드립니다."
 )
 
 st.divider()
 
 
 # =========================================================
-# SELECT AREA
+# INPUT
 # =========================================================
-st.header("내 상권 진단하기")
+st.header("1. 내 상권 찾아보기")
 
 st.write(
-    "**어디에서 장사하고 계신가요?** "
-    "서울시에서 정의한 골목상권을 기준으로 분석합니다."
+    "서울시에서 정의한 **골목상권 단위**로 분석합니다."
 )
 
-with st.expander("상권명이 낯선가요?"):
+with st.expander("ⓘ 내가 어느 골목상권인지 잘 모르겠어요"):
     st.write(
-        "FLOW의 '상권'은 역 자체나 임의의 반경을 의미하지 않습니다. "
-        "서울시 상권분석서비스에서 정의한 골목상권 영역을 사용합니다."
+        "상권명은 역이나 특정 지점 자체를 의미하지 않습니다. "
+        "서울시 상권분석서비스에서 지정한 골목상권 영역의 이름입니다."
     )
     st.write(
-        "상권명에는 주변 역, 도로, 학교 등의 이름이 포함될 수 있습니다. "
-        "예를 들어 '효창공원앞역 5번'은 역 5번 출구 자체가 아니라 "
-        "그 명칭으로 지정된 골목상권 영역을 의미합니다."
+        "현재 프로토타입에서는 상권명을 검색해 선택할 수 있으며, "
+        "향후 주소·지도 기반으로 해당 골목상권을 바로 찾을 수 있도록 "
+        "확장할 수 있습니다."
     )
+
 
 area_options = (
     area_df[["area_code", "area"]]
@@ -263,20 +317,18 @@ area_name_map = dict(
     zip(area_options["area_code"], area_options["area"])
 )
 
-select1, select2 = st.columns(2)
+c1, c2 = st.columns(2)
 
-with select1:
+with c1:
     selected_code = st.selectbox(
-        "분석할 골목상권 선택",
+        "분석할 골목상권",
         options=area_options["area_code"].tolist(),
-        format_func=lambda code: area_name_map.get(code, code),
-        help="상권명을 입력해 검색할 수도 있습니다."
+        format_func=lambda x: area_name_map.get(x, x)
     )
 
 selected_area = area_name_map[selected_code]
 
-# 전체 분석 데이터의 업종을 자동으로 읽음.
-# 나중에 전체 업종 CSV로 바꾸면 자동으로 추가됨.
+# 전체 CSV 업종 자동 인식
 categories = (
     area_df["category"]
     .dropna()
@@ -285,15 +337,15 @@ categories = (
     .tolist()
 )
 
-with select2:
+with c2:
     selected_category = st.selectbox(
-        "업종 선택",
+        "업종",
         options=categories
     )
 
 st.caption(
-    "현재 프로토타입은 최종 분석 데이터에 포함된 업종을 제공합니다. "
-    "분석 범위가 확대되면 선택 가능한 업종도 자동으로 늘어납니다."
+    "현재 제공 업종은 분석 데이터에 포함된 업종 기준입니다. "
+    "향후 전체 업종 분석 CSV로 교체하면 선택 가능한 업종도 자동으로 확대됩니다."
 )
 
 run = st.button(
@@ -316,29 +368,17 @@ rows = area_df[
 
 if rows.empty:
     st.warning(
-        "선택한 골목상권과 업종 조합은 현재 분석 결과가 없습니다. "
+        "선택한 상권과 업종 조합은 현재 분석 결과가 없습니다. "
         "다른 업종을 선택해 주세요."
     )
     st.stop()
 
 result = rows.iloc[0]
 
-st.divider()
-
-st.header(f"{selected_area} · {selected_category}")
-
-st.caption(
-    "서울시 골목상권 단위 × 업종 단위 분석 결과"
-)
-
-
-# =========================================================
-# AVAILABILITY
-# =========================================================
 if not is_available(result["analysis_available"]):
     st.warning(
         "최근 4개 분기의 활동 또는 관측 근거가 부족하여 "
-        "이 상권·업종은 신뢰할 수 있는 진단 결과를 제공하기 어렵습니다."
+        "이 상권·업종은 신뢰할 수 있는 분석 결과를 제공하기 어렵습니다."
     )
     st.stop()
 
@@ -355,12 +395,6 @@ dead_time = (
     else "뚜렷한 DEAD TIME 없음"
 )
 
-dead_gap = (
-    float(result["dead_gap"])
-    if pd.notna(result["dead_gap"])
-    else 0.0
-)
-
 twin_name = result["twin_name"]
 
 similarity = (
@@ -375,87 +409,12 @@ twin_conversion = (
     else np.nan
 )
 
+has_twin = valid_text(twin_name)
 
-# =========================================================
-# EASY SUMMARY
-# =========================================================
-st.header("한눈에 보는 우리 상권")
-
-if flow_score < 30:
-    main_message = (
-        "사람의 흐름과 상권 여건에 비해 "
-        "실제 소비로 이어지는 정도가 상대적으로 낮습니다."
-    )
-elif flow_score < 70:
-    main_message = (
-        "사람의 흐름과 상권 여건 대비 "
-        "소비 연결 성과가 중간 수준입니다."
-    )
-else:
-    main_message = (
-        "사람의 흐름과 상권 여건이 "
-        "실제 소비로 비교적 잘 이어지고 있습니다."
-    )
-
-st.info(main_message)
-
-score1, score2 = st.columns(2)
-
-with score1:
-    st.metric(
-        "소비 연결력 · FLOW SCORE",
-        f"{flow_score:.1f}점",
-        level_text(flow_score)
-    )
-
-    st.write(
-        f"**{percentile_sentence(flow_score)}**"
-    )
-
-    st.caption(
-        "사람의 흐름과 상권 여건을 고려했을 때 "
-        "실제 소비로 이어지는 상대적 수준입니다."
-    )
-
-with score2:
-    st.metric(
-        "유동 수준",
-        f"{traffic_score:.1f}점",
-        level_text(traffic_score)
-    )
-
-    st.write(
-        f"**{percentile_sentence(traffic_score)}**"
-    )
-
-    if traffic_score >= 70:
-        st.caption(
-            "동일 업종 상권과 비교하면 사람의 흐름은 많은 편입니다."
-        )
-    elif traffic_score < 30:
-        st.caption(
-            "동일 업종 상권과 비교하면 사람의 흐름은 적은 편입니다."
-        )
-    else:
-        st.caption(
-            "동일 업종 상권과 비교하면 사람의 흐름은 중간 수준입니다."
-        )
-
-
-with st.expander("ⓘ FLOW SCORE는 무엇인가요?"):
-    st.write(
-        "FLOW SCORE는 단순 매출점수나 상권의 절대적인 우수성을 "
-        "평가하는 점수가 아닙니다."
-    )
-    st.write(
-        "유동인구, 상주·직장인구, 점포구성 등 상권 조건을 고려했을 때의 "
-        "기대 소비수준과 실제 소비성과의 차이를 계산하고, "
-        "이를 동일 업종 상권 내 상대적 위치인 0~100점으로 변환한 지표입니다."
-    )
-    st.write(
-        "따라서 점수가 높을수록 주어진 상권 조건에 비해 "
-        "실제 소비가 상대적으로 활발하게 연결되고 있음을 의미합니다."
-    )
+type_name, type_desc, type_action = diagnose_type(
+    traffic_score,
+    flow_score
+)
 
 
 # =========================================================
@@ -481,20 +440,119 @@ if not selected_time.empty:
         categories=time_order,
         ordered=True
     )
-
     selected_time = selected_time.sort_values("time")
 
 
 # =========================================================
-# TIME OPPORTUNITY
+# RESULT
 # =========================================================
 st.divider()
-st.header("언제 소비 기회를 놓치고 있을까요?")
+
+st.header(
+    f"2. {selected_area} · {selected_category} 진단"
+)
+
+st.caption(
+    "서울시 골목상권 × 업종 단위 분석 결과입니다."
+)
+
+
+# =========================================================
+# TYPE
+# =========================================================
+st.markdown(
+    f"""
+    <div class="type-box">
+        <div class="flow-label">FLOW 상권 유형</div>
+        <div style="
+            font-size:29px;
+            font-weight:800;
+            color:#174F82;
+            margin-bottom:6px;">
+            {type_name}
+        </div>
+        <div style="
+            font-size:16px;
+            font-weight:600;
+            color:#31485B;
+            margin-bottom:8px;">
+            {type_desc}
+        </div>
+        <div class="flow-note">
+            {type_action}
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# =========================================================
+# CORE SCORE
+# =========================================================
+st.subheader("한눈에 보는 우리 상권")
+
+s1, s2 = st.columns(2)
+
+with s1:
+    st.metric(
+        "소비 연결력 · FLOW SCORE",
+        f"{flow_score:.1f}점",
+        level(flow_score)
+    )
+
+    st.write(
+        f"**{percentile_text(flow_score)}**"
+    )
+
+    st.caption(
+        "상권 여건을 고려했을 때 실제 소비로 "
+        "연결되는 상대적 수준"
+    )
+
+with s2:
+    st.metric(
+        "유동 수준",
+        f"{traffic_score:.1f}점",
+        level(traffic_score)
+    )
+
+    st.write(
+        f"**{percentile_text(traffic_score)}**"
+    )
+
+    st.caption(
+        "같은 업종 상권과 비교한 사람 흐름의 상대적 수준"
+    )
+
+
+with st.expander("ⓘ FLOW SCORE를 쉽게 설명해 주세요"):
+    st.write(
+        "사람이 많다고 반드시 소비가 많이 발생하는 것은 아닙니다."
+    )
+    st.write(
+        "FLOW SCORE는 유동인구뿐 아니라 상주·직장인구, "
+        "점포구성 등 상권 여건을 함께 고려했을 때 "
+        "실제 소비가 얼마나 잘 연결되고 있는지를 "
+        "같은 업종 상권끼리 비교한 0~100의 상대적 지표입니다."
+    )
+    st.write(
+        "따라서 70점이라고 해서 상권 자체가 '70점짜리'라는 의미는 아닙니다."
+    )
+
+
+# =========================================================
+# TIME CHART
+# =========================================================
+st.divider()
+st.header("3. 언제 소비 기회를 놓치고 있을까요?")
 
 if selected_time.empty:
+
     st.warning("시간대별 분석 결과가 없습니다.")
 
 else:
+
     fig = go.Figure()
 
     fig.add_trace(
@@ -514,19 +572,21 @@ else:
     )
 
     if dead_time in time_order:
+
         dead_rows = selected_time[
             selected_time["time"].astype(str) == dead_time
         ]
 
         if not dead_rows.empty:
-            dead_y = max(
+
+            max_y = max(
                 float(dead_rows.iloc[0]["potential"]),
                 float(dead_rows.iloc[0]["actual"])
             )
 
             fig.add_annotation(
                 x=dead_time,
-                y=dead_y,
+                y=max_y,
                 text="주목할 시간",
                 showarrow=True,
                 arrowhead=2,
@@ -536,7 +596,7 @@ else:
     fig.update_layout(
         barmode="group",
         height=420,
-        margin=dict(l=20, r=20, t=40, b=20),
+        margin=dict(l=20, r=20, t=45, b=20),
         plot_bgcolor="white",
         paper_bgcolor="white",
         xaxis_title="시간대",
@@ -556,121 +616,100 @@ else:
         config={"displayModeBar": False}
     )
 
+
     if dead_time != "뚜렷한 DEAD TIME 없음":
+
         dead_rows = selected_time[
             selected_time["time"].astype(str) == dead_time
         ]
 
         if not dead_rows.empty:
+
             d = dead_rows.iloc[0]
             repeat_dead = int(d["repeat_dead"])
 
             st.warning(
-                f"**{dead_time}를 주목하세요.** "
-                f"사람의 흐름과 상권 여건에 비해 실제 소비가 상대적으로 "
-                f"부족한 현상이 최근 4개 분기 중 "
-                f"**{repeat_dead}회** 반복되었습니다."
+                f"**{dead_time}를 먼저 확인해 보세요.** "
+                f"상권 여건에 비해 실제 소비가 상대적으로 부족한 현상이 "
+                f"최근 4개 분기 중 **{repeat_dead}회** 반복되었습니다."
             )
+
     else:
+
         st.success(
             "특정 시간대에서 반복적으로 나타나는 "
             "뚜렷한 소비공백은 발견되지 않았습니다."
         )
 
-    with st.expander("ⓘ 이 그래프는 어떻게 읽나요?"):
-        st.write(
-            "'상권 여건상 기대 소비'와 '실제 소비' 사이의 차이가 클수록 "
-            "현재 상권의 사람 흐름과 조건에 비해 소비로 충분히 "
-            "연결되지 못하고 있을 가능성을 보여줍니다."
-        )
-        st.write(
-            "단, 기대 소비는 미래 매출액이나 매출건수를 정확히 예측한 값이 "
-            "아니라 상권 간 비교를 위한 통계적 기준입니다."
-        )
 
-
-# =========================================================
-# DEAD TIME
-# =========================================================
-st.subheader("놓치고 있는 시간 · DEAD TIME")
-
-if dead_time == "뚜렷한 DEAD TIME 없음":
-    st.success(
-        "최근 4개 분기에서 반복적으로 확인되는 "
-        "뚜렷한 DEAD TIME은 없습니다."
+with st.expander("ⓘ 기대 소비와 DEAD TIME은 무슨 뜻인가요?"):
+    st.write(
+        "'상권 여건상 기대 소비'는 미래 매출 예측값이 아닙니다. "
+        "유동인구와 여러 상권 조건을 고려했을 때 통계적으로 "
+        "비교하기 위한 상대적 기준입니다."
+    )
+    st.write(
+        "DEAD TIME은 이 기대수준과 실제 소비 사이의 공백이 "
+        "같은 업종·시간대에서 상대적으로 크고, "
+        "최근 4개 분기 중 최소 2회 반복된 시간입니다."
+    )
+    st.write(
+        "00~06시는 DEAD TIME 판정에서 제외됩니다."
     )
 
-else:
-    dead_rows = selected_time[
-        selected_time["time"].astype(str) == dead_time
-    ]
-
-    if not dead_rows.empty:
-        d = dead_rows.iloc[0]
-
-        st.markdown(
-            f'<div class="flow-warning">'
-            f'<div class="flow-label">가장 먼저 살펴볼 시간</div>'
-            f'<div style="font-size:28px;font-weight:800;color:#9A6100;">'
-            f'{dead_time}</div>'
-            f'<div class="flow-result">'
-            f'최근 4개 분기 중 {int(d["repeat_dead"])}회 반복 탐지'
-            f'</div></div>',
-            unsafe_allow_html=True
-        )
-
-    with st.expander("ⓘ DEAD TIME은 어떻게 정하나요?"):
-        st.write(
-            "00~06시는 판정에서 제외하고, 활동 근거가 충분한 시간대 중 "
-            "동일 업종·분기·시간대와 비교했을 때 소비공백이 상위 10%에 "
-            "해당하는 경우를 확인합니다."
-        )
-        st.write(
-            "일시적인 현상을 DEAD TIME으로 판단하지 않기 위해 "
-            "최근 4개 분기 중 최소 2회 반복된 시간대만 최종 탐지합니다."
-        )
-
 
 # =========================================================
-# BEST TWIN
+# TWIN
 # =========================================================
 st.divider()
-st.header("우리와 닮았지만 소비 연결이 더 잘되는 곳")
+st.header("4. 우리와 닮았지만 더 잘되는 곳")
 
-has_twin = valid_text(twin_name)
+twin_rows = pd.DataFrame()
 
 if not has_twin:
+
     st.info(
         "현재 조건에서는 구조적으로 유사하면서 "
         "소비 연결 성과가 더 높은 비교 상권을 찾지 못했습니다."
     )
 
 else:
+
     st.markdown(
-        f'<div class="flow-highlight">'
-        f'<div class="flow-label">BEST TWIN</div>'
-        f'<div style="font-size:27px;font-weight:800;color:#174F82;">'
-        f'{twin_name}</div>'
-        f'<div class="flow-result">'
-        f'상권 구조 유사도 {similarity:.1f}점'
-        f'</div></div>',
+        f"""
+        <div class="flow-blue">
+            <div class="flow-label">BEST TWIN</div>
+            <div style="
+                font-size:28px;
+                font-weight:800;
+                color:#174F82;">
+                {twin_name}
+            </div>
+            <div style="
+                font-size:15px;
+                font-weight:650;
+                margin-top:5px;">
+                상권 구조 유사도 {similarity:.1f}점
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True
     )
 
     st.write(
         f"**{twin_name}**은 우리 상권과 유동·인구·점포구조 등이 "
-        "비슷하면서 소비 연결 성과가 더 높은 상권입니다."
+        "비슷하지만 소비 연결 성과는 더 높은 비교 상권입니다."
     )
 
-    twin1, twin2 = st.columns(2)
+    t1, t2 = st.columns(2)
 
-    with twin1:
+    with t1:
         st.metric(
             "우리 상권 소비 연결력",
             f"{flow_score:.1f}점"
         )
 
-    with twin2:
+    with t2:
         if pd.notna(twin_conversion):
             st.metric(
                 "BEST TWIN 소비 연결력",
@@ -678,28 +717,6 @@ else:
                 f"{twin_conversion-flow_score:+.1f}점"
             )
 
-    with st.expander("ⓘ BEST TWIN과 구조적 유사도는 무엇인가요?"):
-        st.write(
-            "BEST TWIN은 같은 업종 중 우리 상권과 구조적으로 유사하면서 "
-            "FLOW SCORE가 더 높은 비교 상권입니다."
-        )
-        st.write(
-            "구조적 유사도는 유동·인구·점포구조 등 16개 상권 특성의 "
-            "백분위 차이를 이용해 계산합니다."
-        )
-        st.write(
-            f"따라서 유사도 {similarity:.1f}점은 두 상권의 특성이 "
-            f"{similarity:.1f}% 동일하다는 의미는 아닙니다."
-        )
-
-
-# =========================================================
-# TWIN DIFFERENCE
-# =========================================================
-twin_rows = pd.DataFrame()
-
-if has_twin:
-    st.subheader("닮은 상권과 이런 점이 달라요")
 
     twin_rows = twin_df[
         (twin_df["area"] == selected_area) &
@@ -709,94 +726,118 @@ if has_twin:
 
     twin_rows = twin_rows.sort_values("rank").head(3)
 
-    if twin_rows.empty:
-        st.info("BEST TWIN과의 세부 특성 비교 결과가 없습니다.")
 
-    else:
+    if not twin_rows.empty:
+
+        st.subheader("닮은 상권과 이런 점이 달라요")
+
         cols = st.columns(3)
 
         for i, (_, row) in enumerate(twin_rows.iterrows()):
+
             value = float(row["difference"])
-            readable_value = format_difference(
+            readable = format_difference(
                 value,
                 row["unit"]
             )
 
             with cols[i]:
+
                 st.markdown(
-                    f'<div class="flow-summary">'
-                    f'<div class="flow-label">'
-                    f'TOP {int(row["rank"])}</div>'
-                    f'<div class="flow-mini-title">'
-                    f'{row["feature"]}</div>'
-                    f'<div style="font-size:25px;font-weight:800;'
-                    f'color:#174F82;">'
-                    f'{readable_value}</div>'
-                    f'<div class="flow-note">'
-                    f'{direction_sentence(value)}</div>'
-                    f'</div>',
+                    f"""
+                    <div class="flow-card">
+                        <div class="flow-label">
+                            TOP {int(row["rank"])}
+                        </div>
+                        <div class="flow-small-title">
+                            {row["feature"]}
+                        </div>
+                        <div style="
+                            font-size:24px;
+                            font-weight:800;
+                            color:#174F82;
+                            margin:8px 0;">
+                            {readable}
+                        </div>
+                        <div class="flow-note">
+                            {direction(value)}
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
         st.caption(
-            "위 항목은 BEST TWIN과 비교했을 때 상대적으로 차이가 큰 "
-            "상권 특성입니다. 해당 특성이 소비성과 차이의 원인이라는 "
-            "의미는 아닙니다."
+            "위 항목은 BEST TWIN과 비교했을 때 차이가 크게 나타난 "
+            "상권 특성입니다. 해당 특성이 소비성과 차이의 직접적인 "
+            "원인이라는 의미는 아닙니다."
         )
 
 
+with st.expander("ⓘ BEST TWIN은 어떻게 찾나요?"):
+    st.write(
+        "같은 업종의 상권 중 유동·인구·점포구조 등 "
+        "16개 상권 특성이 우리 상권과 유사하면서 "
+        "FLOW SCORE가 더 높은 상권을 찾습니다."
+    )
+    st.write(
+        "구조적 유사도는 실제 특성이 몇 % 동일하다는 뜻이 아니라 "
+        "16개 특성의 상대적 위치 차이를 이용한 비교 지표입니다."
+    )
+
+
 # =========================================================
-# FINAL SUMMARY / ACTION
+# DECISION SUPPORT
 # =========================================================
 st.divider()
-st.header("FLOW가 찾은 핵심 포인트")
+st.header("5. 그래서 무엇을 먼저 확인해야 할까요?")
 
-# Heading markdown을 쓰지 않으므로 hover 링크 아이콘이 생기지 않음.
-
-if traffic_score >= 70:
-    traffic_summary = (
-        "동일 업종 상권과 비교하면 사람의 흐름은 많은 편입니다."
-    )
-elif traffic_score < 30:
-    traffic_summary = (
-        "동일 업종 상권과 비교하면 사람의 흐름은 적은 편입니다."
-    )
-else:
-    traffic_summary = (
-        "동일 업종 상권과 비교하면 사람의 흐름은 중간 수준입니다."
-    )
-
-st.markdown(
-    '<div class="flow-mini-title">① 사람의 흐름</div>',
-    unsafe_allow_html=True
+st.write(
+    "FLOW는 개별 점포의 매출 원인을 단정하지 않습니다. "
+    "대신 현재 상권 데이터에서 **우선 확인할 문제의 방향**을 제시합니다."
 )
-st.write(traffic_summary)
 
+# 1
 st.markdown(
-    '<div class="flow-mini-title">② 놓치고 있는 시간</div>',
+    '<div class="flow-title">① 상권 유형부터 확인</div>',
     unsafe_allow_html=True
 )
 
-if dead_time == "뚜렷한 DEAD TIME 없음":
+st.write(
+    f"현재 상권은 **{type_name}**입니다. {type_action}"
+)
+
+# 2
+st.markdown(
+    '<div class="flow-title">② 시간대 확인</div>',
+    unsafe_allow_html=True
+)
+
+if dead_time != "뚜렷한 DEAD TIME 없음":
+
     st.write(
-        "최근 4개 분기에서 반복적으로 나타나는 "
-        "뚜렷한 소비공백 시간은 없습니다."
-    )
-else:
-    st.write(
-        f"**{dead_time}**에서 반복적인 소비공백이 관측되었습니다. "
-        "이 시간대의 상품구성·운영방식·고객흐름 등을 우선 확인해볼 수 있습니다."
+        f"**{dead_time}**에 상권 차원의 소비공백이 반복되고 있습니다. "
+        "내 매장에서도 같은 시간대의 주문이나 매출이 낮은지 먼저 비교해 보세요."
     )
 
+else:
+
+    st.write(
+        "상권 전체에서 반복적으로 나타나는 특정 DEAD TIME은 없습니다. "
+        "내 매장만 특정 시간대 매출이 낮다면 점포 수준의 문제일 가능성을 "
+        "추가로 살펴볼 필요가 있습니다."
+    )
+
+# 3
 st.markdown(
-    '<div class="flow-mini-title">③ 비교해볼 상권</div>',
+    '<div class="flow-title">③ 비교상권에서 힌트 찾기</div>',
     unsafe_allow_html=True
 )
 
 if has_twin:
+
     st.write(
-        f"우리와 구조가 비슷하지만 소비 연결력이 더 높은 "
-        f"**{twin_name}**을 비교 대상으로 참고할 수 있습니다."
+        f"**{twin_name}**은 구조가 비슷하지만 소비 연결 성과가 더 높습니다."
     )
 
     if not twin_rows.empty:
@@ -804,23 +845,125 @@ if has_twin:
 
         st.write(
             "두 상권에서 상대적으로 차이가 크게 나타난 항목은 "
-            f"**{', '.join(feature_names)}**입니다."
+            f"**{', '.join(feature_names)}**입니다. "
+            "원인으로 단정하기보다 추가로 확인할 비교 포인트로 활용할 수 있습니다."
         )
+
 else:
+
     st.write(
-        "현재 조건에서는 소비 연결력이 더 높은 적절한 "
-        "BEST TWIN이 탐지되지 않았습니다."
+        "현재 조건에서는 적절한 BEST TWIN이 없어 "
+        "동일 업종 내 FLOW SCORE와 시간대별 소비공백을 중심으로 "
+        "살펴보는 것이 적절합니다."
     )
 
 
 # =========================================================
-# FOOTER
+# STORE SELF CHECK
+# =========================================================
+st.divider()
+st.header("6. 우리 가게도 같은 문제일까요?")
+
+st.write(
+    "상권 분석만으로는 **우리 가게 자체의 문제인지, "
+    "동네 전체의 문제인지** 구분하기 어렵습니다."
+)
+
+st.write(
+    "내 매장의 시간대별 상황을 알고 있다면 아래에서 "
+    "상권 분석 결과와 간단히 비교해볼 수 있습니다."
+)
+
+use_store_check = st.checkbox(
+    "내 가게의 취약 시간대와 비교해보기"
+)
+
+if use_store_check:
+
+    store_weak_times = st.multiselect(
+        "평소 주문이나 매출이 특히 낮다고 느끼는 시간대를 선택하세요.",
+        options=[
+            "06~11",
+            "11~14",
+            "14~17",
+            "17~21",
+            "21~24"
+        ]
+    )
+
+    if store_weak_times:
+
+        if (
+            dead_time != "뚜렷한 DEAD TIME 없음"
+            and dead_time in store_weak_times
+        ):
+
+            st.success(
+                f"**상권 공통형 소비공백 가능성**\n\n"
+                f"내 매장에서 약하다고 느끼는 **{dead_time}**가 "
+                f"상권 전체에서도 반복적인 DEAD TIME으로 탐지되었습니다. "
+                f"점포 하나만의 현상이라기보다 해당 상권·업종에서 "
+                f"공통적으로 나타나는 시간대 패턴일 가능성을 먼저 "
+                f"살펴볼 수 있습니다."
+            )
+
+        elif dead_time == "뚜렷한 DEAD TIME 없음":
+
+            st.warning(
+                "**점포 개별형 점검 필요**\n\n"
+                "상권 전체에서는 반복적인 DEAD TIME이 탐지되지 않았지만 "
+                "내 매장에서는 취약 시간대가 존재합니다. "
+                "상권 자체보다 매장별 상품구성, 가격, 노출, 운영시간 등의 "
+                "점포 수준 요소를 추가로 확인해볼 필요가 있습니다."
+            )
+
+        else:
+
+            st.warning(
+                "**상권과 점포의 취약 시간이 다릅니다.**\n\n"
+                f"상권에서는 **{dead_time}**가 DEAD TIME으로 탐지됐지만 "
+                f"내 매장의 취약 시간은 "
+                f"**{', '.join(store_weak_times)}**입니다. "
+                "상권 공통 패턴과 매장 개별 패턴을 구분해서 살펴볼 필요가 있습니다."
+            )
+
+    else:
+
+        st.caption(
+            "취약 시간대를 하나 이상 선택하면 상권 결과와 비교해 드립니다."
+        )
+
+
+with st.expander("시간대별 매출 데이터가 있다면 더 정확하게 할 수 있나요?"):
+    st.write(
+        "가능합니다. 현재 버전은 사용자가 체감하는 취약 시간대를 "
+        "상권 데이터와 비교하는 간단한 프로토타입입니다."
+    )
+    st.write(
+        "향후 POS 등의 실제 점포 시간대별 매출 데이터를 연결하면 "
+        "'상권도 약하고 내 매장도 약한 시간', "
+        "'상권은 괜찮지만 내 매장만 약한 시간' 등을 "
+        "보다 객관적으로 구분할 수 있습니다."
+    )
+
+
+# =========================================================
+# FINAL
 # =========================================================
 st.divider()
 
+st.markdown(
+    '<div class="flow-title">FLOW의 역할</div>',
+    unsafe_allow_html=True
+)
+
+st.write(
+    "**사람이 없는 곳을 찾는 것에서 끝나지 않고, "
+    "사람이 있는데도 소비로 연결되지 않는 지점을 발견합니다.**"
+)
+
 st.caption(
     "FLOW는 서울시 상권 데이터를 기반으로 한 데이터 분석 프로토타입입니다. "
-    "FLOW SCORE와 BEST TWIN은 동일 업종 내 상대적 비교를 위한 지표이며, "
-    "개별 매장의 미래 매출을 예측하거나 특정 상권 특성이 소비성과의 "
-    "인과적 원인임을 의미하지 않습니다."
+    "분석 결과는 상권×업종 수준의 상대적 비교이며 개별 점포의 미래 매출을 "
+    "예측하거나 특정 요인이 매출 부진의 직접적인 원인임을 의미하지 않습니다."
 )
