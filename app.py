@@ -396,48 +396,6 @@ if st.session_state.show_result and st.session_state.selected_key:
         conversion_label = "높은 편"
         hero_sub = "전체 수준보다 특정 시간대의 추가 기회와 유사상권의 차이를 확인해볼 수 있습니다."
 
-    # -----------------------------
-    # QUICK SUMMARY
-    # -----------------------------
-    eligible_rank = dead_candidates.copy()
-    eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
-    eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
-
-    if data["consumer_score"] < 50:
-        quick_type = "유동은 충분하지만 소비 연결은 약한 편"
-    elif data["consumer_score"] < 70:
-        quick_type = "유동과 소비 연결은 보통 수준"
-    else:
-        quick_type = "유동이 소비로 비교적 잘 이어지는 편"
-
-    quick_twin = data["twin"] if data["twin"] else "성과가 더 높은 유사상권 없음"
-
-    st.markdown("### 한눈에 보는 FLOW 진단")
-    q1, q2, q3 = st.columns(3)
-    with q1:
-        st.markdown(
-            f"""<div class="card" style="min-height:145px;">
-            <div class="label">상권 유형</div>
-            <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:9px;">{quick_type}</div>
-            </div>""", unsafe_allow_html=True
-        )
-    with q2:
-        st.markdown(
-            f"""<div class="card" style="min-height:145px;">
-            <div class="label">가장 먼저 볼 시간</div>
-            <div style="font-size:27px;font-weight:850;color:#a55c00;margin-top:9px;">{dead_time}</div>
-            <div class="subtext">소비 연결 격차가 가장 큰 시간</div>
-            </div>""", unsafe_allow_html=True
-        )
-    with q3:
-        st.markdown(
-            f"""<div class="card" style="min-height:145px;">
-            <div class="label">비교해볼 상권</div>
-            <div style="font-size:21px;font-weight:850;color:#173c67;margin-top:9px;">{quick_twin}</div>
-            <div class="subtext">구조가 비슷한 비교 기준</div>
-            </div>""", unsafe_allow_html=True
-        )
-
     # 2. ONE-LINE DIAGNOSIS
     st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
 
@@ -481,6 +439,49 @@ if st.session_state.show_result and st.session_state.selected_key:
             f"분석지수 기준으로 유동 수준은 {data['traffic_score']}, FLOW SCORE는 {data['flow_score']}입니다. "
             "두 값은 매출액이나 미래 매출 예측값이 아니라 상권 간 상대 비교를 위한 분석지표입니다."
         )
+
+    # -----------------------------
+    # QUICK SUMMARY
+    # -----------------------------
+    eligible_rank = dead_candidates.copy()
+    eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
+    eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
+
+    if data["consumer_score"] < 50:
+        quick_type = "유동은 충분하지만 소비 연결은 약한 편"
+    elif data["consumer_score"] < 70:
+        quick_type = "유동과 소비 연결은 보통 수준"
+    else:
+        quick_type = "유동이 소비로 비교적 잘 이어지는 편"
+
+    quick_twin = data["twin"] if data["twin"] else "성과가 더 높은 유사상권 없음"
+
+    st.markdown("#### 한눈에 보는 FLOW 진단")
+    q1, q2, q3 = st.columns(3)
+    with q1:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">상권 유형</div>
+            <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:9px;">{quick_type}</div>
+            </div>""", unsafe_allow_html=True
+        )
+    with q2:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">가장 먼저 볼 시간</div>
+            <div style="font-size:27px;font-weight:850;color:#a55c00;margin-top:9px;">{dead_time}</div>
+            <div class="subtext">소비 연결 격차가 가장 큰 시간</div>
+            </div>""", unsafe_allow_html=True
+        )
+    with q3:
+        st.markdown(
+            f"""<div class="card" style="min-height:145px;">
+            <div class="label">비교해볼 상권</div>
+            <div style="font-size:21px;font-weight:850;color:#173c67;margin-top:9px;">{quick_twin}</div>
+            <div class="subtext">구조가 비슷한 비교 기준</div>
+            </div>""", unsafe_allow_html=True
+        )
+
 
     # 3. TIME
     st.markdown('<div class="section-title">3. 사람이 소비로 가장 덜 이어지는 시간은?</div>', unsafe_allow_html=True)
@@ -540,27 +541,24 @@ if st.session_state.show_result and st.session_state.selected_key:
         """, unsafe_allow_html=True
     )
 
-    st.markdown("#### 시간대별 점검 우선순위")
+    st.markdown("#### 시간대 점검 우선순위")
     if not eligible_rank.empty:
-        rank_cols = st.columns(min(3, len(eligible_rank)))
-        for i, (_, rr) in enumerate(eligible_rank.head(3).iterrows()):
-            with rank_cols[i]:
-                rank_label = ["1순위", "2순위", "3순위"][i]
-                gap_val = float(rr["gap"])
-                if i == 0:
-                    gap_word = "격차 가장 큼"
-                elif gap_val > 0:
-                    gap_word = "추가 점검"
-                else:
-                    gap_word = "격차 크지 않음"
-                st.markdown(
-                    f"""<div class="card" style="min-height:130px;">
-                    <div class="label">{rank_label}</div>
-                    <div style="font-size:23px;font-weight:850;color:#183f6c;margin:7px 0;">{rr["time"]}</div>
-                    <div class="subtext">{gap_word}</div>
-                    </div>""",
-                    unsafe_allow_html=True
-                )
+        first_rr = eligible_rank.iloc[0]
+        st.markdown(
+            f"""<div class="card" style="border-left:4px solid #a55c00;">
+            <div class="label">우선 확인</div>
+            <div style="font-size:24px;font-weight:850;color:#a55c00;margin:7px 0;">{first_rr["time"]}</div>
+            <div style="font-size:15px;line-height:1.65;">
+            상권 여건 대비 실제 소비의 상대적 격차가 가장 크게 나타난 시간대입니다.
+            </div></div>""",
+            unsafe_allow_html=True
+        )
+        rest = eligible_rank.iloc[1:].copy()
+        rest = rest[pd.to_numeric(rest["gap"], errors="coerce") > 0]
+        if rest.empty:
+            st.caption("나머지 시간대에서는 추가로 크게 두드러지는 소비공백 신호가 확인되지 않았습니다.")
+        else:
+            st.caption("다음으로 참고할 시간대: " + " · ".join(rest["time"].astype(str).head(2).tolist()))
         st.caption("※ 00~06 및 활동 관측 근거가 부족한 시간대는 DEAD TIME 우선순위에서 제외합니다.")
 
     with st.expander("ⓘ 그래프는 어떻게 계산됐나요?"):
@@ -641,8 +639,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                         </div>""", unsafe_allow_html=True
                     )
 
-            if positive_features:
-                pf, pdiff, punit = positive_features[0]
+            meaningful_positive = [(f, d, u) for f, d, u in positive_features if abs(d) >= 0.05]
+            if meaningful_positive:
+                pf, pdiff, punit = meaningful_positive[0]
                 st.success(
                     f"**우리 상권이 이미 가진 특징:** BEST TWIN과 비교하면 `{pf}`은 우리 상권이 더 높게 나타납니다. "
                     "이는 매출 성과의 원인이라는 뜻이 아니라, 현재 상권이 가진 구조적 특징입니다."
@@ -798,7 +797,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 )
                 p3_how = "FLOW 보유: 상권 시간대 결과 · BEST TWIN 비교"
             else:
-                p3_title = f"상권의 {dead_time} 대응은 그다음입니다"
+                p3_title = f"상권의 {dead_time} 소비공백은 다음으로 확인하세요"
                 p3_text = (
                     f"현재 사장님 가게는 {store_weak}이 더 약하다고 응답했습니다. "
                     f"먼저 점포 기록으로 {store_weak}의 문제를 확인하고, 이후 상권 공통 취약시간인 {dead_time} 대응을 검토하세요."
