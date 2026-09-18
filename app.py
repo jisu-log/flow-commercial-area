@@ -348,14 +348,38 @@ st.caption(
     "향후 전체 업종 분석 CSV로 교체하면 선택 가능한 업종도 자동으로 확대됩니다."
 )
 
-run = st.button(
+# =========================================================
+# 진단 실행 상태 저장
+# =========================================================
+
+if "diagnosis_started" not in st.session_state:
+    st.session_state.diagnosis_started = False
+
+if "diagnosed_code" not in st.session_state:
+    st.session_state.diagnosed_code = None
+
+if "diagnosed_category" not in st.session_state:
+    st.session_state.diagnosed_category = None
+
+
+if st.button(
     "내 상권 진단하기",
     type="primary",
     use_container_width=True
-)
+):
+    st.session_state.diagnosis_started = True
+    st.session_state.diagnosed_code = selected_code
+    st.session_state.diagnosed_category = selected_category
 
-if not run:
+
+if not st.session_state.diagnosis_started:
     st.stop()
+
+
+# 실제 분석에는 버튼을 눌렀을 당시 선택값 사용
+selected_code = st.session_state.diagnosed_code
+selected_category = st.session_state.diagnosed_category
+selected_area = area_name_map[selected_code]
 
 
 # =========================================================
