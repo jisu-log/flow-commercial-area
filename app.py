@@ -29,6 +29,7 @@ def _find_csv(*names):
 AREA_FILE = _find_csv("area_summary.csv", "area_summary(1).csv")
 TIME_FILE = _find_csv("time_result.csv", "time_result(1).csv")
 TWIN_FILE = _find_csv("twin_difference.csv", "twin_difference(1).csv")
+MAP_FILE = _find_csv("flow_area_map.csv")
 
 @st.cache_data
 def load_analysis_data():
@@ -54,6 +55,14 @@ def load_analysis_data():
     return area_df, time_df, twin_df
 
 area_df, time_df_all, twin_df_all = load_analysis_data()
+
+@st.cache_data
+def load_map_data():
+    df = pd.read_csv(MAP_FILE, dtype={"area_code": str})
+    df["area_code"] = df["area_code"].astype(str).str.strip()
+    return df
+
+map_df = load_map_data()
 
 # -----------------------------
 # CSS
@@ -257,6 +266,31 @@ selected_code = str(area_labels[selected_area_label])
 
 selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
 selected_area_name = selected_area_rows["area"].iloc[0]
+
+# 선택한 분석 상권의 실제 위치 확인
+selected_map = map_df[map_df["area_code"] == selected_code].copy()
+
+if not selected_map.empty:
+    loc = selected_map.iloc[0]
+    st.markdown("#### 📍 선택한 상권 위치")
+    st.markdown(
+        f"""<div class="card" style="margin-bottom:10px;">
+        <div style="font-size:19px;font-weight:850;color:#173c67;">{selected_area_name}</div>
+        <div class="subtext" style="margin-top:4px;">{loc["district"]} · {loc["dong"]}</div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+    st.map(
+        selected_map[["lat", "lon"]],
+        latitude="lat",
+        longitude="lon",
+        size=110,
+        zoom=15,
+        height=300
+    )
+    st.caption("※ 지도는 선택한 분석 상권의 대표 좌표를 표시합니다. 실제 상권 경계 전체를 뜻하지 않습니다.")
+else:
+    st.caption("선택한 상권의 지도 위치 정보가 없습니다.")
 
 # 선택한 상권에 실제 존재하는 업종을 전부 표시
 category_options = sorted(selected_area_rows["category"].dropna().unique().tolist())
