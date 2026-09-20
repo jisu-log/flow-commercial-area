@@ -833,13 +833,46 @@ if st.session_state.show_result and st.session_state.selected_key:
                 if diff > 0:
                     positive_features.append((feature, diff, unit))
                 with why_cols[i]:
-                    direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
-                    value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
+                    # 연령대 유동 비중은 age_comparison.csv의 실제 비중값으로 표시
+                    age_label = None
+                    for _age in ["10대", "20대", "30대", "40대", "50대", "60대 이상"]:
+                        if _age in str(feature) and "유동" in str(feature):
+                            age_label = _age
+                            break
+
+                    if age_label is not None:
+                        _age_row = age_df[
+                            (age_df["area_code"] == str(selected_code).strip()) &
+                            (age_df["category"] == str(category).strip()) &
+                            (age_df["age_group"] == age_label)
+                        ]
+
+                        if not _age_row.empty:
+                            _ar = _age_row.iloc[0]
+                            _our_pct = float(_ar["area_share"]) * 100
+                            _twin_pct = float(_ar["twin_share"]) * 100
+                            _diff_pp = float(_ar["difference_pp"])
+                            _direction = "우리 상권이 높음" if _diff_pp > 0 else ("우리 상권이 낮음" if _diff_pp < 0 else "두 상권이 비슷함")
+                            _diff_text = f"{abs(_diff_pp):.1f}%p 차이"
+                            _detail = (
+                                f"우리 상권 <b>{_our_pct:.1f}%</b> · "
+                                f"비교 TWIN <b>{_twin_pct:.1f}%</b><br>"
+                                f"<b>{_direction}</b> · {_diff_text}"
+                            )
+                        else:
+                            direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
+                            value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
+                            _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
+                    else:
+                        direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
+                        value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
+                        _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
+
                     st.markdown(
                         f"""<div class="card" style="min-height:155px;">
                         <div class="label">비교 단서 {i+1}</div>
                         <div style="font-size:18px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
-                        <div style="font-size:14px;line-height:1.6;"><b>{direction}</b><br>{value}{unit} 차이</div>
+                        <div style="font-size:14px;line-height:1.6;">{_detail}</div>
                         </div>""", unsafe_allow_html=True
                     )
 
