@@ -210,6 +210,74 @@ h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
     margin-bottom: 10px;
 }
 
+/* ===== FLOW shared page system ===== */
+.page-kicker{
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.04em;
+    color:#6f8294;
+    margin:4px 0 5px;
+}
+.page-context{
+    font-size:14px;
+    color:#6b7d8d;
+    margin:-8px 0 18px;
+}
+.result-strip{
+    background:#ffffff;
+    border:1px solid #dfe7ef;
+    border-radius:14px;
+    padding:14px 17px;
+    margin:0 0 14px;
+    box-shadow:0 3px 12px rgba(20,50,80,.035);
+}
+.result-strip .title{
+    font-size:13px;
+    font-weight:800;
+    color:#6f8294;
+    margin-bottom:5px;
+}
+.result-strip .value{
+    font-size:22px;
+    line-height:1.35;
+    font-weight:850;
+    color:#173c67;
+}
+.section-title{
+    margin-top:32px;
+    margin-bottom:10px;
+}
+.card,.diagnosis-box,.twin-box,.why-card,.compare-box{
+    box-shadow:0 3px 12px rgba(20,50,80,.04);
+}
+.card{
+    border-radius:14px;
+    padding:20px;
+}
+.diagnosis-box,.twin-box{
+    border-radius:14px;
+    padding:20px 22px;
+}
+[data-testid="stExpander"]{
+    border-color:#dfe7ef !important;
+    border-radius:10px !important;
+    background:#fbfcfe;
+}
+[data-testid="stDataFrame"]{
+    border-radius:10px;
+    overflow:hidden;
+}
+div[data-testid="stCheckbox"]{
+    background:#ffffff;
+    border:1px solid #dfe7ef;
+    border-radius:12px;
+    padding:9px 13px;
+    margin:5px 0 12px;
+}
+hr{
+    border-color:#e7edf3 !important;
+}
+
 div.stButton > button {
     width: 100%;
     height: 50px;
@@ -870,7 +938,9 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     # 2. ONE-LINE DIAGNOSIS
     if page == "상권 진단":
+        st.markdown('<div class="page-kicker">FLOW OVERVIEW</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="section-title">{area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
+        st.markdown('<div class="page-context">상권의 유동과 소비 연결 수준을 먼저 요약하고, 다음 진단에서 시간대와 비교 상권을 확인합니다.</div>', unsafe_allow_html=True)
 
         st.markdown(
             f"""
@@ -917,7 +987,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 """, unsafe_allow_html=True
             )
 
-        with st.expander("ⓘ 이 점수는 무엇을 의미하나요?"):
+        with st.expander("점수 기준 · 해석 방법"):
             st.markdown(
                 f"""
                 **사람의 흐름 · {traffic_score_round}점 / 100**  
@@ -949,7 +1019,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         quick_type = f"유동 {traffic_label} · 소비 연결 {conversion_label}"
         quick_twin = data["twin"] if data["twin"] else "적합한 비교 상권 없음"
 
-        st.markdown("#### 한눈에 보는 FLOW 진단")
+        st.markdown('<div style="font-size:18px;font-weight:850;color:#18324a;margin:22px 0 10px;">한눈에 보는 FLOW 진단</div>', unsafe_allow_html=True)
         q1, q2, q3 = st.columns(3)
         with q1:
             st.markdown(
@@ -983,7 +1053,9 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     # 3. TIME
     if page == "시간대 진단":
+        st.markdown('<div class="page-kicker">TIME DIAGNOSIS</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="page-context">{area} · {category}의 시간대별 소비공백을 업종 특성까지 보정해 확인합니다.</div>', unsafe_allow_html=True)
 
         if has_dead_time:
             st.markdown(
@@ -1046,9 +1118,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
                 <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
                 <span style="font-size:14px;color:#6c604f;">
-                소비공백 신호가 나타났지만, 동일 업종·동일 시간대 상권들과 비교했을 때
-                <b>이 상권만 유독 큰 공백으로 보기는 어려운 시간입니다.</b>
-                따라서 상권 고유 DEAD TIME으로 분류하지 않았습니다.
+                해당 업종에서 전반적으로 소비 연결이 약하게 나타나는 시간대입니다.
+                이 상권에서도 소비공백 신호가 나타났지만, <b>업종 자체의 시간대 특성을 고려해
+                상권 고유 DEAD TIME과 구분했습니다.</b>
                 </span></div>""", unsafe_allow_html=True
             )
 
@@ -1082,29 +1154,26 @@ if st.session_state.show_result and st.session_state.selected_key:
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown(
-            """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:12px 16px;margin:4px 0 14px;">
-            <div style="font-weight:800;color:#173c67;margin-bottom:5px;">그래프는 이렇게 읽어요</div>
-            <div style="font-size:14px;line-height:1.65;color:#526579;">
+            """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:11px 15px;margin:4px 0 12px;">
+            <div style="font-weight:800;color:#173c67;margin-bottom:4px;">그래프 해석 포인트</div>
+            <div style="font-size:14px;line-height:1.6;color:#526579;">
             연한 막대는 <b>상권 특성 기반 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
-            기대수준은 목표 매출이나 미래 매출 예측값이 아니라, <b>시간대별 소비 연결의 상대적 공백을 찾기 위한 비교 기준</b>입니다.
-            특정 시간대의 실제 매출건수가 높다고 해서 해당 업종이 그 시간대에 일반적으로 장사가 잘된다는 의미는 아닙니다.
-            DEAD TIME은 막대 차이만으로 정하지 않고, <b>상권 내부 순위와 동일 업종·동일 시간대 비교</b>를 함께 봅니다.
+            <b>막대 차이가 가장 큰 시간이 곧 DEAD TIME인 것은 아닙니다.</b>
+            최종 판정에는 반복성, 상권 내부 상대순위, 동일 업종·동일 시간대 비교가 함께 반영됩니다.
             </div></div>""", unsafe_allow_html=True
         )
 
-        st.markdown("#### 업종 특성까지 보정해서 판단합니다")
         st.markdown(
-            """<div style="background:white;border:1px solid #dfe7ef;border-radius:14px;padding:16px 18px;margin:4px 0 8px;
-                          box-shadow:0 3px 12px rgba(20,50,80,0.04);">
-            <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
-                        font-size:16px;font-weight:800;color:#173c67;text-align:center;">
-                <span>① 기존 소비공백 신호</span><span style="color:#91a4b7;">→</span>
-                <span>② 우리 상권 안에서도 약함</span><span style="color:#91a4b7;">→</span>
-                <span>③ 같은 업종·시간대와 비교해도 유독 약함</span>
+            """<div style="background:white;border:1px solid #dfe7ef;border-radius:12px;padding:13px 16px;margin:2px 0 10px;">
+            <div style="font-size:14px;font-weight:800;color:#173c67;margin-bottom:8px;">DEAD TIME 판정 흐름</div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;font-weight:750;color:#294761;">
+                <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">① 반복 소비공백</span>
+                <span style="color:#9aabbc;">→</span>
+                <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">② 상권 내부에서도 약함</span>
+                <span style="color:#9aabbc;">→</span>
+                <span style="background:#fff5e7;border-radius:8px;padding:7px 10px;color:#9a5b08;">③ 동종업종 비교에서도 유독 약함</span>
             </div>
-            <div style="text-align:center;font-size:14px;color:#607286;margin-top:10px;">
-                업종 전체가 원래 약한 시간은 분리하고, 이 상권에서 유독 약한 시간만 DEAD TIME 후보로 남깁니다.
-            </div></div>""",
+            </div>""",
             unsafe_allow_html=True
         )
 
@@ -1120,7 +1189,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 unsafe_allow_html=True
             )
 
-        with st.expander("ⓘ 보정 기준과 시간대별 분류 자세히 보기"):
+        with st.expander("상세 판정 기준 · 전체 시간대 보기"):
             st.write(
                 "기존 DEAD TIME 후보를 출발점으로 사용하고, 상권 내부 시간대 gap 순위와 "
                 "동일 업종·동일 시간대의 다른 상권 분포를 추가로 비교합니다."
@@ -1157,7 +1226,9 @@ if st.session_state.show_result and st.session_state.selected_key:
 
         # 4. TWIN
     if page == "비교 TWIN":
+        st.markdown('<div class="page-kicker">TWIN COMPARISON</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">비슷하지만 더 잘되는 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="page-context">{area} · {category}와 구조가 비슷하면서 소비 연결 성과가 더 높은 동일 업종 상권을 비교합니다.</div>', unsafe_allow_html=True)
 
         if not has_twin or not data["twin"]:
             st.markdown(
@@ -1169,7 +1240,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 조건을 낮춰 억지로 비교 상권을 제시하지 않습니다.
                 </div></div>""", unsafe_allow_html=True
             )
-            with st.expander("ⓘ TWIN 선정 기준 보기"):
+            with st.expander("TWIN 선정 기준 보기"):
                 st.write(
                     "TWIN 후보는 동일 업종 상권 중 16개 구조 특성의 유사도가 85점 이상이고, "
                     "FLOW SCORE가 선택 상권보다 높은 곳으로 제한합니다. 그 후보들 가운데 구조적으로 가장 유사한 상권을 선택합니다."
@@ -1300,11 +1371,16 @@ if st.session_state.show_result and st.session_state.selected_key:
 
         # 5. STORE DIAGNOSIS
     if page == "내 가게 점검":
+        st.markdown('<div class="page-kicker">MY STORE CHECK</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-title">우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
-        st.write(
-            "여기부터는 **상권 분석 결과와 사장님의 응답을 함께 비교**합니다. "
-            "FLOW가 현재 보유한 것은 상권 단위 데이터이며, 개별 점포의 POS·입점 데이터는 아직 연결되어 있지 않습니다. "
-            "따라서 아래 결과는 원인을 확정하는 처방이 아니라 **내 가게에서 다음으로 무엇을 확인할지 정하는 점검 가이드**입니다."
+        st.markdown(
+            """<div class="result-strip">
+            <div class="title">상권 분석에서 점포 점검으로</div>
+            <div style="font-size:14px;line-height:1.65;color:#526579;">
+            상권 분석 결과와 사장님의 응답을 함께 비교해 <b>다음으로 확인할 항목</b>을 정합니다.
+            개별 점포의 POS·입점 데이터는 연결되어 있지 않으므로, 원인을 확정하는 처방이 아니라 점검 가이드로 활용합니다.
+            </div></div>""",
+            unsafe_allow_html=True
         )
     
         compare_store = st.checkbox("내 가게 맞춤 점검 시작하기", key="compare_store")
@@ -1352,7 +1428,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     )
                     badge = "점포 개별 패턴 우선 점검"
     
-                st.markdown("### 맞춤 점검 결과")
+                st.markdown('<div style="font-size:18px;font-weight:850;color:#18324a;margin:22px 0 10px;">맞춤 점검 결과</div>', unsafe_allow_html=True)
                 st.markdown(
                     f"""
                     <div class="diagnosis-box">
@@ -1448,7 +1524,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     )
                     p3_how = "FLOW 보유: 상권 취약시간 / 점포 데이터: 사장님 확인 필요"
     
-                st.markdown("### FLOW ACTION · 확인 순서")
+                st.markdown('<div style="font-size:18px;font-weight:850;color:#18324a;margin:24px 0 10px;">FLOW ACTION · 확인 순서</div>', unsafe_allow_html=True)
                 ac1, ac2, ac3 = st.columns(3)
                 actions = [
                     ("1순위", p1_title, p1_text, p1_how),
