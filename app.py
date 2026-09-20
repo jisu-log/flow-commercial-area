@@ -692,13 +692,14 @@ if st.session_state.show_result and st.session_state.selected_key:
         (time_rows["time"].astype(str) != "00~06") & eligible
     ].copy()
 
-    # area_summary의 dead_time을 우선 사용하고, 없으면 eligible gap 최대값
+    # DEAD TIME은 R 핵심분석의 최종 판정 결과(area_summary)를 그대로 사용
     dead_time = str(row.get("dead_time", "")).strip()
-    if (not dead_time) or dead_time.lower() == "nan" or dead_time == "뚜렷한 DEAD TIME 없음":
-        if not dead_candidates.empty:
-            dead_time = str(dead_candidates.loc[dead_candidates["gap"].idxmax(), "time"])
-        else:
-            dead_time = "뚜렷한 DEAD TIME 없음"
+    has_dead_time = bool(
+        dead_time and dead_time.lower() != "nan"
+        and dead_time != "뚜렷한 DEAD TIME 없음"
+    )
+    if not has_dead_time:
+        dead_time = "뚜렷한 DEAD TIME 없음"
 
     # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
     chart_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
@@ -714,14 +715,12 @@ if st.session_state.show_result and st.session_state.selected_key:
     potential = chart_rows["potential"].astype(float).to_numpy()
     actual = chart_rows["actual"].astype(float).to_numpy()
 
-    if dead_time in times:
+    if has_dead_time and dead_time in times:
         dead_index = times.index(dead_time)
+        dead_gap = float(potential[dead_index] - actual[dead_index])
     else:
-        valid_gap = (potential - actual)
-        dead_index = int(np.nanargmax(valid_gap))
-        dead_time = times[dead_index]
-
-    dead_gap = float(potential[dead_index] - actual[dead_index])
+        dead_index = None
+        dead_gap = np.nan
 
     # 비교 TWIN 차이 TOP3
     twin_name_raw = row.get("twin_name", np.nan)
@@ -755,7 +754,8 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     twin_diff = (
         float(data["twin_conversion"] - actual[dead_index])
-        if pd.notna(data["twin_conversion"]) else np.nan
+        if has_dead_time and dead_index is not None and pd.notna(data["twin_conversion"])
+        else np.nan
     )
 
     # 점수는 같은 업종을 분석한 상권들 사이에서의 상대적 위치(0~100)로 해석합니다.
@@ -798,8 +798,17 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     # 시간대 우선순위 데이터는 여러 페이지에서 사용하므로 페이지 분기 전에 생성
     eligible_rank = dead_candidates.copy()
-    eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
-    eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
+    for _c in ["gap_log", "gap_percentile", "repeat_dead"]:
+        if _c in eligible_rank.columns:
+            eligible_rank[_c] = pd.to_numeric(eligible_rank[_c], errors="coerce")
+    if all(_c in eligible_rank.columns for _c in ["gap_log", "gap_percentile", "repeat_dead"]):
+        eligible_rank = eligible_rank[
+            (eligible_rank["gap_log"] > 0) &
+            (eligible_rank["gap_percentile"] >= 0.90) &
+            (eligible_rank["repeat_dead"] >= 2)
+        ].sort_values(["gap_log", "gap_percentile"], ascending=False)
+    else:
+        eligible_rank = eligible_rank.iloc[0:0]
 
     # 2. ONE-LINE DIAGNOSIS
     if page == "상권 진단":
@@ -893,11 +902,15 @@ if st.session_state.show_result and st.session_state.selected_key:
                 </div>""", unsafe_allow_html=True
             )
         with q2:
+            if has_dead_time:
+                q2_value, q2_sub, q2_color = dead_time, "FLOW 기준을 충족한 우선 점검 시간", "#a55c00"
+            else:
+                q2_value, q2_sub, q2_color = "뚜렷한 시간 없음", "현재 FLOW 기준을 충족한 시간대가 없어요", "#173c67"
             st.markdown(
                 f"""<div class="card" style="min-height:145px;">
                 <div class="label">가장 먼저 볼 시간</div>
-                <div style="font-size:27px;font-weight:850;color:#a55c00;margin-top:9px;">{dead_time}</div>
-                <div class="subtext">소비 연결 격차가 가장 큰 시간</div>
+                <div style="font-size:24px;font-weight:850;color:{q2_color};margin-top:9px;">{q2_value}</div>
+                <div class="subtext">{q2_sub}</div>
                 </div>""", unsafe_allow_html=True
             )
         with q3:
@@ -913,120 +926,107 @@ if st.session_state.show_result and st.session_state.selected_key:
     # 3. TIME
     if page == "시간대 진단":
         st.markdown('<div class="section-title">3. 소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
-    
-        st.markdown(
-            f"""
-            <div class="action-box">
-                <div class="label">가장 큰 소비공백이 나타난 시간</div>
+
+        if has_dead_time:
+            st.markdown(
+                f"""<div class="action-box">
+                <div class="label">FLOW 기준을 충족한 우선 점검 시간</div>
                 <div style="font-size:34px;font-weight:850;color:#a55c00;margin:5px 0 7px;">{dead_time}</div>
-                <div style="font-size:17px;font-weight:750;color:#18324a;line-height:1.65;">
-                    이 시간대는 주변 유동과 상권 조건에 비해 실제 소비가 상대적으로 낮게 나타났습니다.
+                <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
+                같은 업종·같은 시간대의 다른 상권과 비교했을 때 소비 공백이 매우 크고,
+                이러한 현상이 반복된 시간입니다.
+                </div></div>""", unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                """<div class="action-box" style="border-left-color:#245B91;background:#f5f9fd;">
+                <div class="label">시간대 진단 결과</div>
+                <div style="font-size:28px;font-weight:850;color:#173c67;margin:5px 0 7px;">뚜렷한 우선 점검 시간 없음</div>
+                <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
+                현재 선택한 상권·업종에서는 FLOW의 DEAD TIME 기준을 충족하는 시간대가 확인되지 않았습니다.
                 </div>
-                <div class="subtext">
-                    즉, 사람이 전혀 없는 시간이 아니라 <b>사람의 활동이 소비로 충분히 이어지지 않는 시간</b>에 가깝습니다.
-                </div>
-            </div>
-            """, unsafe_allow_html=True
-        )
-    
+                <div class="subtext">따라서 특정 시간대를 억지로 문제 시간으로 지정하지 않습니다.</div>
+                </div>""", unsafe_allow_html=True
+            )
+
         time_df = pd.DataFrame({
             "시간대": data["times"],
-            "소비가 일어날 여건": data["potential"],
-            "실제 소비 수준": data["actual"]
+            "모형 기대수준": data["potential"],
+            "실제 매출건수": data["actual"]
         })
-    
+
         fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=time_df["시간대"], y=time_df["소비가 일어날 여건"],
-            name="소비가 일어날 여건", marker_color="#A8C7E8"
-        ))
-        fig.add_trace(go.Bar(
-            x=time_df["시간대"], y=time_df["실제 소비 수준"],
-            name="실제 소비 수준", marker_color="#245B91"
-        ))
+        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["모형 기대수준"],
+                             name="모형 기대수준", marker_color="#A8C7E8"))
+        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["실제 매출건수"],
+                             name="실제 매출건수", marker_color="#245B91"))
         fig.update_layout(
             barmode="group", height=390,
             margin=dict(l=15, r=15, t=50, b=15),
             plot_bgcolor="white", paper_bgcolor="white",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis=dict(gridcolor="#e9eef3", title="상대 지수", showticklabels=False),
-            xaxis=dict(showgrid=False, title=""),
-            bargap=0.28
+            yaxis=dict(gridcolor="#e9eef3", title="매출건수 기준", showticklabels=False),
+            xaxis=dict(showgrid=False, title=""), bargap=0.28
         )
-        fig.add_vrect(
-            x0=dead_index - 0.45, x1=dead_index + 0.45,
-            fillcolor="rgba(255,177,85,0.14)", line_width=0, layer="below"
-        )
+        if has_dead_time and dead_index is not None:
+            fig.add_vrect(x0=dead_index - 0.45, x1=dead_index + 0.45,
+                          fillcolor="rgba(255,177,85,0.14)", line_width=0, layer="below")
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown(
-            """
-            <div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:13px 16px;margin:4px 0 14px;">
-                <div style="font-weight:800;color:#173c67;margin-bottom:6px;">그래프는 이렇게 읽어요</div>
-                <div style="font-size:14px;line-height:1.65;color:#526579;">
-                    <b>소비가 일어날 여건</b>은 분석모형이 계산한 시간대별 <b>상대적 소비 기대수준</b>이고,
-                    <b>실제 소비 수준</b>은 데이터에서 관측된 해당 시간대의 소비 수준입니다.<br>
-                    두 막대의 차이가 클수록 <b>기대수준에 비해 실제 소비가 상대적으로 약한 시간</b>으로 봅니다.
-                    이 값은 원화 매출이나 미래 매출 예측값이 아닙니다.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
+            """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:13px 16px;margin:4px 0 14px;">
+            <div style="font-weight:800;color:#173c67;margin-bottom:6px;">그래프는 이렇게 읽어요</div>
+            <div style="font-size:14px;line-height:1.7;color:#526579;">
+            <b>모형 기대수준</b>은 과거 자료로 학습한 모형이 상권 조건을 고려해 계산한 값이고,
+            <b>실제 매출건수</b>는 해당 시간대에 관측된 매출건수입니다.<br>
+            <b>막대의 눈에 보이는 간격만으로 DEAD TIME을 정하지 않습니다.</b>
+            로그 기준의 차이, 같은 업종·같은 시간대 내 상대 위치, 반복 여부를 함께 확인합니다.
+            </div></div>""", unsafe_allow_html=True
         )
-    
-        st.markdown(
-            f"""
-            <div style="background:#eef6ff;border-left:4px solid #245B91;border-radius:8px;padding:14px 16px;margin-top:2px;">
-                <b>{dead_time}을 먼저 보세요.</b><br>
-                다른 시간대보다 소비가 일어날 여건과 실제 소비 사이의 격차가 가장 크게 나타납니다.
-                FLOW는 이를 '매출이 오를 시간'이 아니라 <b>우선 점검할 시간</b>으로 해석합니다.
-            </div>
-            """, unsafe_allow_html=True
-        )
-    
-        st.markdown("#### 시간대 점검 우선순위")
-        if not eligible_rank.empty:
-            first_rr = eligible_rank.iloc[0]
-            st.markdown(
-                f"""<div class="card" style="border-left:4px solid #a55c00;">
-                <div class="label">우선 확인</div>
-                <div style="font-size:24px;font-weight:850;color:#a55c00;margin:7px 0;">{first_rr["time"]}</div>
-                <div style="font-size:15px;line-height:1.65;">
-                상권 여건 대비 실제 소비의 상대적 격차가 가장 크게 나타난 시간대입니다.
-                </div></div>""",
-                unsafe_allow_html=True
+
+        if has_dead_time:
+            st.info(f"{dead_time}은 아래 세 조건을 모두 충족해 우선 점검 시간으로 분류됐습니다.")
+        else:
+            st.info("현재 세 조건을 모두 충족한 시간대가 없습니다. 그래프는 시간대별 패턴을 참고하기 위한 보조 자료입니다.")
+
+        st.markdown("#### FLOW는 언제 DEAD TIME으로 판단하나요?")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 1</div>
+            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">기대 &gt; 실제</div>
+            <div class="subtext">로그 기준 기대 소비가 실제 소비보다 높아야 합니다.</div></div>""", unsafe_allow_html=True)
+        with c2:
+            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 2</div>
+            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">동일 비교집단 상위 10%</div>
+            <div class="subtext">같은 업종·같은 시간대 상권 중 소비 공백이 상위 10%여야 합니다.</div></div>""", unsafe_allow_html=True)
+        with c3:
+            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 3</div>
+            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">2025년 2회 이상 반복</div>
+            <div class="subtext">일시적 현상이 아니라 분기 자료에서 최소 2회 반복돼야 합니다.</div></div>""", unsafe_allow_html=True)
+        st.caption("※ 00~06시는 제외하며, 2025년 4개 분기가 관측되고 최소 한 분기 이상 매출이 확인된 시간대만 판정합니다.")
+
+        with st.expander("ⓘ 계산 기준을 조금 더 자세히 보기"):
+            st.write(
+                "모형은 2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. "
+                "단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 더 나은 모형을 사용합니다."
             )
-            rest = eligible_rank.iloc[1:].copy()
-            rest = rest[pd.to_numeric(rest["gap"], errors="coerce") > 0]
-            if rest.empty:
-                st.caption("나머지 시간대에서는 추가로 크게 두드러지는 소비공백 신호가 확인되지 않았습니다.")
+            st.write(
+                "확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, "
+                "20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다."
+            )
+            st.write(
+                "DEAD TIME은 '예측 로그값 - 실제 로그값'이 0보다 크고, 같은 분기·업종·시간대 비교집단에서 "
+                "그 차이가 상위 10%이며, 2025년 중 이 조건이 2회 이상 반복될 때 후보가 됩니다."
+            )
+            if has_dead_time and dead_index is not None:
+                tr = chart_rows.iloc[dead_index]
+                gp = pd.to_numeric(tr.get("gap_percentile", np.nan), errors="coerce")
+                rd = pd.to_numeric(tr.get("repeat_dead", np.nan), errors="coerce")
+                gl = pd.to_numeric(tr.get("gap_log", np.nan), errors="coerce")
+                st.write(f"현재 {dead_time}: 로그 차이 {gl:.2f}, 동일 비교집단 내 상대 위치 {gp*100:.0f}%, 반복 {rd:.0f}회.")
             else:
-                st.caption("다음으로 참고할 시간대: " + " · ".join(rest["time"].astype(str).head(2).tolist()))
-            st.caption("※ 00~06 및 활동 관측 근거가 부족한 시간대는 DEAD TIME 우선순위에서 제외합니다.")
-    
-        with st.expander("ⓘ 그래프는 무엇을 근거로 계산했나요?"):
-            st.markdown(
-                f"""
-                **1. 소비가 일어날 여건**  
-                `time_result.csv`에 저장된 **로그선형모형 기반 상대적 소비 기대수준(potential)**을 사용합니다.
-                결과 파일에서도 이를 *'로그선형모형 기반 상대적 소비 기대수준(정확한 미래 매출 예측값 아님)'*으로 정의하고 있습니다.
+                st.write("현재 선택한 상권·업종은 위 조건을 모두 충족한 시간대가 없어 '뚜렷한 DEAD TIME 없음'으로 분류됩니다.")
 
-                **2. 실제 소비 수준**  
-                같은 시간대에 데이터에서 관측된 **actual** 값을 사용합니다.
-
-                **3. 우선 점검 시간**  
-                분석 가능한 시간대에서 **potential - actual**, 즉 기대수준과 실제 소비의 차이(gap)가 큰 시간을 먼저 확인합니다.
-                활동 관측 근거가 부족한 시간대와 **00~06시**는 우선순위에서 제외합니다.
-
-                **현재 {dead_time}의 값**  
-                상대적 소비 기대수준 **{potential[dead_index]:.0f}** · 실제 소비 수준 **{actual[dead_index]:.0f}** · 차이 **{dead_gap:.0f}**
-
-                ※ 이 값은 원화 매출이나 미래 매출 예측값이 아닙니다.  
-                ※ 현재 전달된 결과 파일에는 로그선형모형에 투입된 **세부 설명변수 목록과 회귀식 자체가 포함되어 있지 않아**,
-                화면에서는 확인 가능한 계산 결과와 정의까지만 설명합니다.
-                """
-            )
-    
         # 4. TWIN
     if page == "비교 TWIN":
         st.markdown('<div class="section-title">4. 비슷한 조건의 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
@@ -1058,8 +1058,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                     f"""<div class="card" style="min-height:175px;text-align:center;">
                     <div class="label">우리 상권</div>
                     <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{area}</div>
-                    <div style="font-size:15px;">{dead_time} 소비 연결</div>
-                    <div style="font-size:22px;font-weight:850;color:#a55c00;margin-top:6px;">상대적으로 낮음</div>
+                    <div style="font-size:15px;">시간대 진단</div>
+                    <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:6px;">{"우선 점검: " + dead_time if has_dead_time else "뚜렷한 DEAD TIME 없음"}</div>
                     </div>""", unsafe_allow_html=True
                 )
             with vm:
@@ -1075,11 +1075,16 @@ if st.session_state.show_result and st.session_state.selected_key:
                 )
     
             with st.expander("ⓘ 분석값으로 비교하기"):
-                st.write(
-                    f"내부 분석지수 기준 우리 상권 {dead_time} 소비 수준은 {actual[dead_index]:.1f}, "
-                    f"비교 TWIN 비교값은 {twin_conversion_text}, 차이는 {twin_diff_text}입니다. "
-                    "이 값은 원화 매출이나 실제 매출 증가율이 아닙니다."
-                )
+                if has_dead_time and dead_index is not None:
+                    st.write(
+                        f"현재 우리 상권의 우선 점검 시간은 {dead_time}입니다. "
+                        "TWIN 비교는 특정 시간대의 원시 매출값을 직접 빼는 방식이 아니라, 아래 16개 상권 구조 특성의 차이를 중심으로 해석합니다."
+                    )
+                else:
+                    st.write(
+                        "현재 우리 상권에는 FLOW 기준을 충족한 DEAD TIME이 없습니다. "
+                        "따라서 특정 시간대를 억지로 TWIN과 연결하지 않고, 아래 16개 상권 구조 특성의 차이를 중심으로 비교합니다."
+                    )
     
             if data["why"]:
                 st.markdown("#### 두 상권은 무엇이 다를까요?")
