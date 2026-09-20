@@ -397,14 +397,14 @@ st.sidebar.markdown(
 )
 page = st.sidebar.radio(
     "메뉴",
-    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  가게 점검"],
+    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  내 가게 점검"],
     label_visibility="collapsed"
 )
 page = {
     "01  상권 진단": "상권 진단",
     "02  시간대 진단": "시간대 진단",
     "03  비교 TWIN": "비교 TWIN",
-    "04  가게 점검": "가게 점검",
+    "04  내 가게 점검": "가게 점검",
 }.get(page, page)
 st.sidebar.markdown("---")
 if st.session_state.get("selected_key"):
@@ -418,7 +418,7 @@ else:
     st.sidebar.caption("먼저 상권과 업종을 선택해주세요.")
 
 if page == "상권 진단":
-    st.markdown('<div class="section-title">1. 내 상권 찾아보기</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">내 상권 찾아보기</div>', unsafe_allow_html=True)
     st.caption("분석할 상권과 업종을 선택하세요.")
     
     # -----------------------------
@@ -676,7 +676,7 @@ if st.session_state.show_result and st.session_state.selected_key:
     area = str(row["area"])
 
     if not bool(row["analysis_available_bool"]):
-        st.markdown(f'<div class="section-title">2. {area} · {category}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">{area} · {category}</div>', unsafe_allow_html=True)
         st.warning("최근 4개 분기의 활동 또는 관측 근거가 부족하여 분석할 수 없습니다.")
         st.stop()
 
@@ -857,7 +857,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     # 2. ONE-LINE DIAGNOSIS
     if page == "상권 진단":
-        st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">{area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
 
         st.markdown(
             f"""
@@ -970,7 +970,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     # 3. TIME
     if page == "시간대 진단":
-        st.markdown('<div class="section-title">3. 소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
 
         if has_dead_time:
             st.markdown(
@@ -1110,7 +1110,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
         # 4. TWIN
     if page == "비교 TWIN":
-        st.markdown('<div class="section-title">4. 비슷하지만 더 잘되는 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">비슷하지만 더 잘되는 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
 
         if not has_twin or not data["twin"]:
             st.markdown(
@@ -1252,8 +1252,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                 )
 
         # 5. STORE DIAGNOSIS
-    if page == "가게 점검":
-        st.markdown('<div class="section-title">5. 우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
+    if page == "내 가게 점검":
+        st.markdown('<div class="section-title">우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
         st.write(
             "여기부터는 **상권 분석 결과와 사장님의 응답을 함께 비교**합니다. "
             "FLOW가 현재 보유한 것은 상권 단위 데이터이며, 개별 점포의 POS·입점 데이터는 아직 연결되어 있지 않습니다. "
