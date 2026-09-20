@@ -261,6 +261,90 @@ section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
     font-size: 12px !important;
 }
 
+
+/* ===== final navigation + hero polish ===== */
+
+/* Sidebar menu: full, consistent width */
+section[data-testid="stSidebar"] div[role="radiogroup"] label {
+    width: 100% !important;
+    min-height: 48px;
+    display: flex !important;
+    align-items: center !important;
+    box-sizing: border-box !important;
+    padding: 11px 14px !important;
+}
+
+/* Hide Streamlit's native radio circles */
+section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {
+    display: none !important;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label p {
+    margin: 0 !important;
+    width: 100%;
+}
+
+/* Selected / unselected menu styling */
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+    background: #ffffff !important;
+    border-color: #ffffff !important;
+    box-shadow: 0 5px 14px rgba(0,0,0,0.10);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
+    color: #174f82 !important;
+    font-weight: 850 !important;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:not(:has(input:checked)) {
+    background: rgba(255,255,255,0.065) !important;
+    border-color: rgba(255,255,255,0.13) !important;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:not(:has(input:checked)) p {
+    color: rgba(255,255,255,0.94) !important;
+}
+
+/* Compact hero so the actual service starts higher */
+.hero {
+    padding: 34px 40px !important;
+    min-height: 0 !important;
+    margin-bottom: 18px !important;
+}
+.hero-title {
+    font-size: 42px !important;
+    line-height: 1.05 !important;
+    margin-bottom: 14px !important;
+}
+.hero-sub {
+    font-size: 24px !important;
+    line-height: 1.3 !important;
+    margin-bottom: 13px !important;
+}
+.hero-desc {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+}
+
+/* Reduce first-section vertical gap */
+.section-title {
+    margin-top: 30px !important;
+}
+
+/* Smaller screens / high browser zoom */
+@media (max-width: 1100px) {
+    section[data-testid="stSidebar"],
+    section[data-testid="stSidebar"] > div {
+        width: 260px !important;
+        min-width: 260px !important;
+    }
+    .hero {
+        padding: 28px 30px !important;
+    }
+    .hero-title {
+        font-size: 36px !important;
+    }
+    .hero-sub {
+        font-size: 21px !important;
+    }
+}
+
 </style>
 """, unsafe_allow_html=True)
 
