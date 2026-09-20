@@ -1112,7 +1112,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                     )
     
             if data["why"]:
-                st.markdown("#### 두 상권은 무엇이 다를까요?")
+                st.markdown("#### 두 상권에서 차이가 큰 특성 TOP 3")
+                st.caption("16개 비교 특성 중 두 상권의 차이가 상대적으로 크게 나타난 3개를 보여줍니다.")
                 why_cols = st.columns(len(data["why"]))
                 positive_features = []
                 for i, (feature, diff, unit) in enumerate(data["why"]):
@@ -1226,7 +1227,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
                     - **유동 규모:** 총 유동인구
                     - **연령 구성:** 20대 유동 비중, 30대 유동 비중
-                    - **시간대 구성:** 00~06, 06~11, 11~14, 14~17, 17~21, 21~24 유동 비중
+                    - **시간대 구성:** 00–06, 06–11, 11–14, 14–17, 17–21, 21–24 유동 비중
                     - **요일 구성:** 주말 유동 비중
                     - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
                     - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
