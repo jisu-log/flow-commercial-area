@@ -231,36 +231,143 @@ if "selected_key" not in st.session_state:
 st.markdown('<div class="section-title">1. 내 상권 찾아보기</div>', unsafe_allow_html=True)
 st.caption("분석할 상권과 업종을 선택하세요.")
 
-# 상권명만 쓰면 동명이 있을 수 있으므로 area_code까지 내부 key로 사용
-area_lookup = (
-    area_df[["area", "area_code"]]
-    .drop_duplicates()
-    .sort_values(["area", "area_code"])
+# -----------------------------
+# 지역 탐색용 메타데이터
+# 분석 결과는 기존 area_summary를 그대로 사용하고,
+# 구/동 정보는 서울시 영역-상권 원본에서 area_code 기준으로만 붙입니다.
+# -----------------------------
+REGION_FILE = _find_csv(
+    "서울시 상권분석서비스(영역-상권).csv",
+    "서울시 상권분석서비스(영역-상권)(1).csv",
+    "서울시 상권분석서비스(영역-상권)(2).csv"
 )
-area_labels = {
-    f"{row.area}": row.area_code
-    for row in area_lookup.itertuples(index=False)
-}
 
-# 동일 상권명이 실제로 여러 코드에 존재하면 코드까지 표시
-dup_names = area_lookup["area"].duplicated(keep=False)
-if dup_names.any():
-    area_labels = {}
-    for row in area_lookup.itertuples(index=False):
-        label = row.area
-        if (area_lookup["area"] == row.area).sum() > 1:
-            label = f"{row.area} · {row.area_code}"
-        area_labels[label] = row.area_code
+@st.cache_data
+def load_region_data():
+    region = pd.read_csv(REGION_FILE, encoding="utf-8-sig")
 
-selected_area_label = st.selectbox("상권 선택", list(area_labels.keys()))
-selected_code = str(area_labels[selected_area_label])
+    # 서울시 원본 CSV 첫 행에 영문 필드명이 데이터처럼 들어있는 경우 제거
+    region["상권코드"] = region["상권코드"].astype(str).str.strip()
+    region = region[region["상권코드"].str.fullmatch(r"\d+")].copy()
 
-selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
-selected_area_name = selected_area_rows["area"].iloc[0]
+    region = region.rename(columns={
+        "상권코드": "area_code",
+        "상권코드명": "area",
+        "자치구코드명": "gu",
+        "행정동코드명": "dong",
+    })
 
-# 선택한 상권에 실제 존재하는 업종을 전부 표시
-category_options = sorted(selected_area_rows["category"].dropna().unique().tolist())
-selected_category = st.selectbox("업종 선택", category_options)
+    for col in ["area_code", "area", "gu", "dong"]:
+        region[col] = region[col].astype(str).str.strip()
+
+    return region[["area_code", "area", "gu", "dong"]].drop_duplicates()
+
+region_df = load_region_data()
+
+# FLOW에서 실제 분석 가능한 상권만 탐색 목록에 남김
+available_codes = set(area_df["area_code"].astype(str))
+region_flow = region_df[region_df["area_code"].isin(available_codes)].copy()
+
+st.markdown("#### 방법 1 · 구와 동으로 찾아보기")
+st.caption("자치구 → 행정동 → 상권 순서로 좁혀서 찾을 수 있습니다.")
+
+gu_options = sorted(region_flow["gu"].dropna().unique().tolist())
+selected_gu = st.selectbox(
+    "자치구 선택",
+    ["선택해주세요"] + gu_options,
+    key="region_gu"
+)
+
+selected_area_label = None
+selected_code = None
+
+if selected_gu != "선택해주세요":
+    gu_region = region_flow[region_flow["gu"] == selected_gu].copy()
+    dong_options = sorted(gu_region["dong"].dropna().unique().tolist())
+
+    selected_dong = st.selectbox(
+        "행정동 선택",
+        ["선택해주세요"] + dong_options,
+        key="region_dong"
+    )
+
+    if selected_dong != "선택해주세요":
+        dong_region = (
+            gu_region[gu_region["dong"] == selected_dong][["area", "area_code"]]
+            .drop_duplicates()
+            .sort_values(["area", "area_code"])
+        )
+
+        # 같은 이름의 상권이 있으면 코드까지 표시
+        dong_labels = {}
+        for row in dong_region.itertuples(index=False):
+            label = row.area
+            if (dong_region["area"] == row.area).sum() > 1:
+                label = f"{row.area} · {row.area_code}"
+            dong_labels[label] = str(row.area_code)
+
+        if dong_labels:
+            selected_area_label = st.selectbox(
+                "상권 선택",
+                list(dong_labels.keys()),
+                key="region_area"
+            )
+            selected_code = dong_labels[selected_area_label]
+        else:
+            st.info("이 행정동에는 현재 FLOW 분석 결과와 연결되는 상권이 없습니다.")
+
+st.markdown("---")
+st.markdown("#### 방법 2 · 상권명으로 바로 검색하기")
+st.caption("구·동을 모르더라도 상권명 일부를 입력해 찾을 수 있습니다.")
+
+search_query = st.text_input(
+    "상권 검색",
+    placeholder="예: 광흥창, 신촌, 건대, 백산초등학교",
+    key="area_search_query"
+).strip()
+
+if search_query:
+    search_pool = (
+        region_flow[region_flow["area"].str.contains(search_query, case=False, na=False)]
+        [["area", "area_code", "gu", "dong"]]
+        .drop_duplicates()
+        .sort_values(["area", "gu", "dong"])
+    )
+
+    if search_pool.empty:
+        st.warning("검색어와 일치하는 FLOW 분석 상권을 찾지 못했습니다.")
+    else:
+        search_labels = {}
+        for row in search_pool.itertuples(index=False):
+            label = f"{row.area} · {row.gu} {row.dong}"
+            if label in search_labels:
+                label = f"{label} · {row.area_code}"
+            search_labels[label] = str(row.area_code)
+
+        searched_label = st.selectbox(
+            f"검색 결과 · {len(search_labels)}곳",
+            list(search_labels.keys()),
+            key="searched_area"
+        )
+
+        # 검색을 사용한 경우 검색 선택을 우선 적용
+        if searched_label:
+            selected_area_label = searched_label
+            selected_code = search_labels[searched_label]
+
+if selected_code is not None:
+    selected_code = str(selected_code)
+    selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
+    selected_area_name = selected_area_rows["area"].iloc[0]
+
+    category_options = sorted(
+        selected_area_rows["category"].dropna().astype(str).unique().tolist()
+    )
+    selected_category = st.selectbox("업종 선택", category_options)
+
+    st.info(f"선택한 상권: **{selected_area_name}** · 업종: **{selected_category}**")
+else:
+    selected_category = None
 
 with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
     st.write(
@@ -268,7 +375,11 @@ with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
         "최종 서비스에서는 익숙한 역·동네명과 분석 상권명을 함께 보여주는 방식으로 연결할 수 있습니다."
     )
 
-if st.button("FLOW 진단하기 →", type="primary"):
+if st.button(
+    "FLOW 진단하기 →",
+    type="primary",
+    disabled=(selected_code is None or selected_category is None)
+):
     st.session_state.selected_key = (selected_code, selected_category)
     st.session_state.show_result = True
 
