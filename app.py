@@ -965,7 +965,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             margin=dict(l=15, r=15, t=50, b=15),
             plot_bgcolor="white", paper_bgcolor="white",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis=dict(gridcolor="#e9eef3", title="매출건수 기준", showticklabels=False),
+            yaxis=dict(gridcolor="#e9eef3", title="", showticklabels=False),
             xaxis=dict(showgrid=False, title=""), bargap=0.28
         )
         if has_dead_time and dead_index is not None:
@@ -974,13 +974,12 @@ if st.session_state.show_result and st.session_state.selected_key:
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown(
-            """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:13px 16px;margin:4px 0 14px;">
-            <div style="font-weight:800;color:#173c67;margin-bottom:6px;">그래프는 이렇게 읽어요</div>
-            <div style="font-size:14px;line-height:1.7;color:#526579;">
-            <b>모형 기대수준</b>은 과거 자료로 학습한 모형이 상권 조건을 고려해 계산한 값이고,
-            <b>실제 매출건수</b>는 해당 시간대에 관측된 매출건수입니다.<br>
-            <b>막대의 눈에 보이는 간격만으로 DEAD TIME을 정하지 않습니다.</b>
-            로그 기준의 차이, 같은 업종·같은 시간대 내 상대 위치, 반복 여부를 함께 확인합니다.
+            """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:12px 16px;margin:4px 0 14px;">
+            <div style="font-weight:800;color:#173c67;margin-bottom:5px;">그래프는 이렇게 읽어요</div>
+            <div style="font-size:14px;line-height:1.65;color:#526579;">
+            연한 막대는 <b>모형이 계산한 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
+            이 그래프는 시간대별 패턴을 비교하기 위한 보조 자료이며,
+            <b>막대 차이만으로 DEAD TIME을 정하지 않습니다.</b>
             </div></div>""", unsafe_allow_html=True
         )
 
@@ -990,42 +989,63 @@ if st.session_state.show_result and st.session_state.selected_key:
             st.info("현재 세 조건을 모두 충족한 시간대가 없습니다. 그래프는 시간대별 패턴을 참고하기 위한 보조 자료입니다.")
 
         st.markdown("#### FLOW는 언제 DEAD TIME으로 판단하나요?")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 1</div>
-            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">기대 &gt; 실제</div>
-            <div class="subtext">로그 기준 기대 소비가 실제 소비보다 높아야 합니다.</div></div>""", unsafe_allow_html=True)
-        with c2:
-            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 2</div>
-            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">동일 비교집단 상위 10%</div>
-            <div class="subtext">같은 업종·같은 시간대 상권 중 소비 공백이 상위 10%여야 합니다.</div></div>""", unsafe_allow_html=True)
-        with c3:
-            st.markdown("""<div class="card" style="min-height:155px;"><div class="label">조건 3</div>
-            <div style="font-size:20px;font-weight:850;color:#173c67;margin:7px 0;">2025년 2회 이상 반복</div>
-            <div class="subtext">일시적 현상이 아니라 분기 자료에서 최소 2회 반복돼야 합니다.</div></div>""", unsafe_allow_html=True)
-        st.caption("※ 00~06시는 제외하며, 2025년 4개 분기가 관측되고 최소 한 분기 이상 매출이 확인된 시간대만 판정합니다.")
+        st.markdown(
+            """
+            <div style="
+                background:white;
+                border:1px solid #dfe7ef;
+                border-radius:14px;
+                padding:16px 18px;
+                margin:4px 0 8px;
+                box-shadow:0 3px 12px rgba(20,50,80,0.04);
+            ">
+                <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+                            font-size:16px;font-weight:800;color:#173c67;text-align:center;">
+                    <span>① 기대보다 소비가 낮고</span>
+                    <span style="color:#91a4b7;">→</span>
+                    <span>② 비슷한 조건의 상권 중 공백이 큰 편이며</span>
+                    <span style="color:#91a4b7;">→</span>
+                    <span>③ 여러 분기에 반복될 때</span>
+                </div>
+                <div style="text-align:center;font-size:14px;color:#607286;margin-top:10px;">
+                    세 조건을 모두 만족하는 시간만 우선 점검 시간으로 표시합니다.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.caption("※ 현재 분석에서는 00~06시를 제외하고, 2025년 4개 분기 중 기준을 2회 이상 충족한 경우를 반복 신호로 봅니다.")
 
         with st.expander("ⓘ 계산 기준을 조금 더 자세히 보기"):
-            st.write(
-                "모형은 2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. "
-                "단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 더 나은 모형을 사용합니다."
-            )
-            st.write(
-                "확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, "
-                "20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다."
-            )
-            st.write(
-                "DEAD TIME은 '예측 로그값 - 실제 로그값'이 0보다 크고, 같은 분기·업종·시간대 비교집단에서 "
-                "그 차이가 상위 10%이며, 2025년 중 이 조건이 2회 이상 반복될 때 후보가 됩니다."
+            st.markdown(
+                """
+**1. 모형 선택**  
+2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. 단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 검증 성능이 더 나은 모형을 사용합니다.
+
+**2. 상권 조건 반영**  
+확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, 20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다.
+
+**3. DEAD TIME 판정**  
+`예측 로그값 - 실제 로그값 > 0`이고, 같은 **분기·업종·시간대**의 다른 상권과 비교했을 때 그 차이가 **상위 10%**이며, 2025년 중 이 조건이 **2회 이상 반복**될 때 후보가 됩니다.
+
+**4. 분석 가능 시간**  
+00~06시는 제외하고, 2025년 4개 분기가 모두 관측되며 최소 한 분기 이상 실제 매출이 확인된 시간대만 판정합니다.
+                """
             )
             if has_dead_time and dead_index is not None:
                 tr = chart_rows.iloc[dead_index]
                 gp = pd.to_numeric(tr.get("gap_percentile", np.nan), errors="coerce")
                 rd = pd.to_numeric(tr.get("repeat_dead", np.nan), errors="coerce")
                 gl = pd.to_numeric(tr.get("gap_log", np.nan), errors="coerce")
-                st.write(f"현재 {dead_time}: 로그 차이 {gl:.2f}, 동일 비교집단 내 상대 위치 {gp*100:.0f}%, 반복 {rd:.0f}회.")
+                st.info(
+                    f"현재 {dead_time}: 로그 차이 {gl:.2f} · "
+                    f"동일 비교집단 내 상대 위치 {gp*100:.0f}% · 반복 {rd:.0f}회"
+                )
             else:
-                st.write("현재 선택한 상권·업종은 위 조건을 모두 충족한 시간대가 없어 '뚜렷한 DEAD TIME 없음'으로 분류됩니다.")
+                st.info(
+                    "현재 선택한 상권·업종은 위 조건을 모두 충족한 시간대가 없어 "
+                    "'뚜렷한 DEAD TIME 없음'으로 분류됩니다."
+                )
 
         # 4. TWIN
     if page == "비교 TWIN":
