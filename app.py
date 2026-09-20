@@ -453,8 +453,8 @@ else:
 
 with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
     st.write(
-        "FLOW의 상권명은 분석 데이터의 상권 단위를 기준으로 합니다. "
-        "최종 서비스에서는 익숙한 역·동네명과 분석 상권명을 함께 보여주는 방식으로 연결할 수 있습니다."
+        "FLOW의 상권명은 서울시 상권분석서비스에서 제공하는 상권 단위를 기준으로 합니다. "
+        "익숙한 동네 이름과 다를 수 있으므로, 자치구·행정동으로 찾아보거나 상권명을 검색해 확인할 수 있습니다."
     )
 
 if st.button(
@@ -536,7 +536,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
     dead_gap = float(potential[dead_index] - actual[dead_index])
 
-    # BEST TWIN 차이 TOP3
+    # 비교 TWIN 차이 TOP3
     twin_name_raw = row.get("twin_name", np.nan)
     twin_name = "" if pd.isna(twin_name_raw) else str(twin_name_raw).strip()
     twin_rows = twin_df_all[
@@ -678,7 +678,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
 
     # 3. TIME
-    st.markdown('<div class="section-title">3. 사람이 소비로 가장 덜 이어지는 시간은?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">3. 소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
 
     st.markdown(
         f"""
@@ -763,7 +763,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         )
 
     # 4. TWIN
-    st.markdown('<div class="section-title">4. 비슷한 조건인데 더 잘되는 곳은?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">4. 비슷한 조건의 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
 
     if not data["twin"]:
         st.info("현재 조건에서 성과가 더 높은 유사상권을 찾지 못했습니다.")
@@ -801,7 +801,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         with v2:
             st.markdown(
                 f"""<div class="card" style="min-height:175px;text-align:center;">
-                <div class="label">BEST TWIN</div>
+                <div class="label">비교 TWIN</div>
                 <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
                 <div style="font-size:15px;">같은 비교 기준</div>
                 <div style="font-size:22px;font-weight:850;color:#245B91;margin-top:6px;">소비 연결 더 활발</div>
@@ -811,7 +811,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         with st.expander("ⓘ 분석값으로 비교하기"):
             st.write(
                 f"내부 분석지수 기준 우리 상권 {dead_time} 소비 수준은 {actual[dead_index]:.1f}, "
-                f"BEST TWIN 비교값은 {twin_conversion_text}, 차이는 {twin_diff_text}입니다. "
+                f"비교 TWIN 비교값은 {twin_conversion_text}, 차이는 {twin_diff_text}입니다. "
                 "이 값은 원화 매출이나 실제 매출 증가율이 아닙니다."
             )
 
@@ -837,15 +837,15 @@ if st.session_state.show_result and st.session_state.selected_key:
             if meaningful_positive:
                 pf, pdiff, punit = meaningful_positive[0]
                 st.success(
-                    f"**우리 상권이 이미 가진 특징:** BEST TWIN과 비교하면 `{pf}`은 우리 상권이 더 높게 나타납니다. "
+                    f"**우리 상권이 이미 가진 특징:** 비교 TWIN과 비교하면 `{pf}`은 우리 상권이 더 높게 나타납니다. "
                     "이는 매출 성과의 원인이라는 뜻이 아니라, 현재 상권이 가진 구조적 특징입니다."
                 )
 
             st.caption("※ 위 차이는 소비성과 차이의 원인으로 확정한 결과가 아니라, 추가로 확인할 비교 단서입니다.")
 
-        with st.expander("ⓘ BEST TWIN과 유사도는 어떻게 해석하나요?"):
+        with st.expander("ⓘ 비교 TWIN과 유사도는 어떻게 해석하나요?"):
             st.write(
-                "BEST TWIN은 구조가 유사한 후보 중 소비 연결 성과가 더 높은 비교 상권입니다. "
+                "비교 TWIN은 구조가 유사한 후보 중 소비 연결 성과가 더 높은 비교 상권입니다. "
                 "유사도는 실제 특성 일치율이 아니라 16개 상권특성에서 두 상권의 평균 백분위 차이를 이용한 구조적 유사도입니다."
             )
 
@@ -989,7 +989,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     f"FLOW의 상권 데이터와 유사상권 비교 결과를 함께 참고할 수 있습니다. "
                     "점포 기록을 확보한 뒤 이 시간대의 차이를 우선 비교해볼 가치가 있습니다."
                 )
-                p3_how = "FLOW 보유: 상권 시간대 결과 · BEST TWIN 비교"
+                p3_how = "FLOW 보유: 상권 시간대 결과 · 비교 TWIN 비교"
             else:
                 p3_title = f"상권의 {dead_time} 소비공백은 다음으로 확인하세요"
                 p3_text = (
