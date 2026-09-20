@@ -472,7 +472,7 @@ page = {
     "01  상권 진단": "상권 진단",
     "02  시간대 진단": "시간대 진단",
     "03  비교 TWIN": "비교 TWIN",
-    "04  내 가게 점검": "가게 점검",
+    "04  내 가게 점검": "내 가게 점검",
 }.get(page, page)
 st.sidebar.markdown("---")
 if st.session_state.get("selected_key"):
@@ -1165,42 +1165,37 @@ if st.session_state.show_result and st.session_state.selected_key:
 
         # DEAD TIME 존재 여부에 따라 마지막 판정 단계를 다르게 표시
         if has_dead_time:
-            flow_step3 = """
-                <span style="background:#fff5e7;border-radius:8px;padding:7px 10px;color:#9a5b08;">
-                    ③ 동종업종 비교에서도 유독 약함
-                </span>
-            """
-            flow_result = """
+            st.markdown(
+                """<div style="background:white;border:1px solid #dfe7ef;border-radius:12px;padding:13px 16px;margin:2px 0 10px;">
+                <div style="font-size:14px;font-weight:800;color:#173c67;margin-bottom:8px;">DEAD TIME 판정 흐름</div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;font-weight:750;color:#294761;">
+                    <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">① 반복 소비공백</span>
+                    <span style="color:#9aabbc;">→</span>
+                    <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">② 상권 내부에서도 약함</span>
+                    <span style="color:#9aabbc;">→</span>
+                    <span style="background:#fff5e7;border-radius:8px;padding:7px 10px;color:#9a5b08;">③ 동종업종 비교에서도 유독 약함</span>
+                </div>
                 <div style="font-size:12px;color:#8a5a13;margin-top:9px;font-weight:750;">
                     최종 기준 통과 → 상권 고유 DEAD TIME 후보
-                </div>
-            """
+                </div></div>""",
+                unsafe_allow_html=True
+            )
         else:
-            flow_step3 = """
-                <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;color:#7c8b99;">
-                    ③ 동종업종 비교 최종 기준 미충족
-                </span>
-            """
-            flow_result = """
+            st.markdown(
+                """<div style="background:white;border:1px solid #dfe7ef;border-radius:12px;padding:13px 16px;margin:2px 0 10px;">
+                <div style="font-size:14px;font-weight:800;color:#173c67;margin-bottom:8px;">DEAD TIME 판정 흐름</div>
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;font-weight:750;color:#294761;">
+                    <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">① 반복 소비공백</span>
+                    <span style="color:#9aabbc;">→</span>
+                    <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">② 상권 내부에서도 약함</span>
+                    <span style="color:#9aabbc;">→</span>
+                    <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;color:#7c8b99;">③ 동종업종 비교 최종 기준 미충족</span>
+                </div>
                 <div style="font-size:12px;color:#748493;margin-top:9px;font-weight:750;">
                     최종 기준 미충족 → 상권 고유 DEAD TIME 없음
-                </div>
-            """
-
-        st.markdown(
-            f"""<div style="background:white;border:1px solid #dfe7ef;border-radius:12px;padding:13px 16px;margin:2px 0 10px;">
-            <div style="font-size:14px;font-weight:800;color:#173c67;margin-bottom:8px;">DEAD TIME 판정 흐름</div>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;font-weight:750;color:#294761;">
-                <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">① 반복 소비공백</span>
-                <span style="color:#9aabbc;">→</span>
-                <span style="background:#f4f7fa;border-radius:8px;padding:7px 10px;">② 상권 내부에서도 약함</span>
-                <span style="color:#9aabbc;">→</span>
-                {flow_step3}
-            </div>
-            {flow_result}
-            </div>""",
-            unsafe_allow_html=True
-        )
+                </div></div>""",
+                unsafe_allow_html=True
+            )
 
         if common_low_times and not has_dead_time:
             common_case = ", ".join(t.replace("~", "–") for t in common_low_times)
