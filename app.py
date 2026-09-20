@@ -800,9 +800,13 @@ if st.session_state.show_result and st.session_state.selected_key:
         "why": why,
     }
 
+    # TWIN 차이는 데이터팀이 선택한 대표 DEAD TIME 기준으로 계산합니다.
+    # 화면의 DEAD TIME 표시는 전체 후보를 보여주되, 단일 값이 필요한 계산은 대표 시간대를 사용합니다.
     twin_diff = (
-        float(data["twin_conversion"] - actual[dead_index])
-        if has_dead_time and dead_index is not None and pd.notna(data["twin_conversion"])
+        float(data["twin_conversion"] - actual[representative_dead_index])
+        if has_dead_time
+        and representative_dead_time in times
+        and pd.notna(data["twin_conversion"])
         else np.nan
     )
 
