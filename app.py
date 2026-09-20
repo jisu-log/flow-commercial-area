@@ -758,29 +758,48 @@ if st.session_state.show_result and st.session_state.selected_key:
         if pd.notna(data["twin_conversion"]) else np.nan
     )
 
-    if data["consumer_score"] < 50:
-        flow_type = "전환 개선형"
-        hero_line = "사람은 충분한데, 실제 소비로 이어지는 힘은 약한 편입니다."
-        traffic_label = "충분한 편"
-        conversion_label = "낮은 편"
-        hero_sub = "새로운 사람을 더 모으는 것보다, 이미 존재하는 유동이 왜 소비로 이어지지 않는지 먼저 볼 필요가 있습니다."
-    elif data["consumer_score"] < 70:
-        flow_type = "균형 점검형"
-        hero_line = "사람의 흐름과 소비 연결은 보통 수준이지만, 놓치는 구간이 있습니다."
-        traffic_label = "보통 이상"
-        conversion_label = "보통 수준"
-        hero_sub = "전체 평균보다 시간대별 차이를 중심으로 소비 기회를 확인해볼 상권입니다."
+    # 점수는 같은 업종을 분석한 상권들 사이에서의 상대적 위치(0~100)로 해석합니다.
+    traffic_score = float(data["traffic_score"])
+    consumer_score = float(data["consumer_score"])
+    traffic_score_round = int(round(traffic_score))
+    consumer_score_round = int(round(consumer_score))
+
+    def level_label(score):
+        if score < 40:
+            return "낮은 편"
+        elif score < 70:
+            return "보통 수준"
+        return "높은 편"
+
+    traffic_label = level_label(traffic_score)
+    conversion_label = level_label(consumer_score)
+
+    # 두 지표를 조합한 현황 요약 — 원인 설명이 아니라 현재 상대적 위치만 설명
+    if traffic_score >= 70 and consumer_score < 40:
+        flow_type = "소비 연결 점검형"
+        hero_line = "사람은 많이 다니지만, 소비 연결 수준은 낮은 편입니다."
+        hero_sub = "현재 상권의 상대적 위치를 보여주는 결과입니다. 왜 이런 차이가 나타나는지는 시간대 진단과 비교 TWIN에서 추가로 살펴봅니다."
+    elif traffic_score >= 70 and consumer_score >= 70:
+        flow_type = "유동·소비 연결 상위형"
+        hero_line = "사람의 흐름과 소비 연결이 모두 높은 편입니다."
+        hero_sub = "같은 업종을 분석한 다른 상권들과 비교했을 때 두 지표가 모두 높은 수준입니다."
+    elif traffic_score < 40 and consumer_score < 40:
+        flow_type = "유동·소비 연결 점검형"
+        hero_line = "사람의 흐름과 소비 연결이 모두 낮은 편입니다."
+        hero_sub = "같은 업종을 분석한 다른 상권들과 비교했을 때 두 지표가 모두 낮은 수준입니다."
+    elif traffic_score < 40 and consumer_score >= 70:
+        flow_type = "소비 연결 강점형"
+        hero_line = "사람의 흐름은 낮지만, 소비 연결 수준은 높은 편입니다."
+        hero_sub = "같은 업종을 분석한 다른 상권들과 비교했을 때 유동보다 소비 연결의 상대적 위치가 높습니다."
     else:
-        flow_type = "연결 우수형"
-        hero_line = "사람의 흐름이 실제 소비로 비교적 잘 이어지는 편입니다."
-        traffic_label = "충분한 편"
-        conversion_label = "높은 편"
-        hero_sub = "전체 수준보다 특정 시간대의 추가 기회와 유사상권의 차이를 확인해볼 수 있습니다."
+        flow_type = "균형 점검형"
+        hero_line = f"사람의 흐름은 {traffic_label}, 소비 연결은 {conversion_label}입니다."
+        hero_sub = "같은 업종을 분석한 다른 상권들과 비교한 현재 위치입니다. 세부 차이는 다음 진단에서 확인할 수 있습니다."
 
     # 2. ONE-LINE DIAGNOSIS
     if page == "상권 진단":
         st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
-    
+
         st.markdown(
             f"""
             <div class="diagnosis-box">
@@ -793,15 +812,20 @@ if st.session_state.show_result and st.session_state.selected_key:
             """,
             unsafe_allow_html=True
         )
-    
+
         c1, c2 = st.columns(2)
         with c1:
             st.markdown(
                 f"""
                 <div class="card">
                     <div class="label">사람의 흐름</div>
-                    <div style="font-size:27px;font-weight:850;color:#173c67;margin:7px 0;">{traffic_label}</div>
-                    <div class="subtext">같은 업종의 비교 상권 가운데 유동이 어느 정도인지 보여줍니다.</div>
+                    <div style="font-size:27px;font-weight:850;color:#173c67;margin:7px 0;">
+                        {traffic_label} <span style="font-size:18px;color:#637487;">· {traffic_score_round}점 / 100</span>
+                    </div>
+                    <div class="subtext">
+                        같은 업종을 분석한 다른 상권들과 비교했을 때,
+                        이 상권에 사람이 얼마나 많이 다니는지를 보여줍니다.
+                    </div>
                 </div>
                 """, unsafe_allow_html=True
             )
@@ -810,34 +834,50 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""
                 <div class="card">
                     <div class="label">소비로 이어지는 정도</div>
-                    <div style="font-size:27px;font-weight:850;color:#a55c00;margin:7px 0;">{conversion_label}</div>
-                    <div class="subtext">상권 여건에 비해 실제 소비가 얼마나 연결되는지를 비교한 결과입니다.</div>
+                    <div style="font-size:27px;font-weight:850;color:#a55c00;margin:7px 0;">
+                        {conversion_label} <span style="font-size:18px;color:#637487;">· {consumer_score_round}점 / 100</span>
+                    </div>
+                    <div class="subtext">
+                        같은 업종을 분석한 다른 상권들과 비교했을 때,
+                        이 상권의 소비 연결이 어느 정도인지를 보여줍니다.
+                    </div>
                 </div>
                 """, unsafe_allow_html=True
             )
-    
-        with st.expander("ⓘ 분석지수도 확인하고 싶어요"):
-            st.write(
-                f"분석지수 기준으로 유동 수준은 {data['traffic_score']}, FLOW SCORE는 {data['flow_score']}입니다. "
-                "두 값은 매출액이나 미래 매출 예측값이 아니라 상권 간 상대 비교를 위한 분석지표입니다."
+
+        with st.expander("ⓘ 이 점수는 무엇을 의미하나요?"):
+            st.markdown(
+                f"""
+                **사람의 흐름 · {traffic_score_round}점 / 100**  
+                같은 업종을 분석한 상권 100곳을 줄 세웠다고 생각하면,
+                이 상권의 유동 수준은 대략 **{traffic_score_round}번째 정도**입니다.
+
+                **소비 연결 · {consumer_score_round}점 / 100**  
+                같은 방식으로 비교했을 때 소비 연결 수준은 대략
+                **{consumer_score_round}번째 정도**입니다.
+
+                **점수 읽는 법**  
+                0~39점은 **낮은 편**, 40~69점은 **보통 수준**, 70~100점은 **높은 편**으로 표시합니다.
+                이 구간은 결과를 쉽게 읽기 위해 FLOW 화면에서 사용하는 기준입니다.
+
+                **주의할 점**  
+                이 점수는 실제 유동인구 수나 매출액, 미래 매출 예측값이 아닙니다.
+                또 **왜 이런 결과가 나왔는지를 설명하는 점수도 아닙니다.**
+                현재 상권이 같은 업종의 다른 상권들과 비교해 어느 정도 위치인지 보여주는 지표입니다.
+                차이가 나타나는 이유는 이후 **시간대 진단과 비교 TWIN**에서 추가로 살펴봅니다.
+                """
             )
-    
+
         # -----------------------------
         # QUICK SUMMARY
         # -----------------------------
         eligible_rank = dead_candidates.copy()
         eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
         eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
-    
-        if data["consumer_score"] < 50:
-            quick_type = "유동은 충분하지만 소비 연결은 약한 편"
-        elif data["consumer_score"] < 70:
-            quick_type = "유동과 소비 연결은 보통 수준"
-        else:
-            quick_type = "유동이 소비로 비교적 잘 이어지는 편"
-    
-        quick_twin = data["twin"] if data["twin"] else "성과가 더 높은 유사상권 없음"
-    
+
+        quick_type = f"유동 {traffic_label} · 소비 연결 {conversion_label}"
+        quick_twin = data["twin"] if data["twin"] else "비교 TWIN 없음"
+
         st.markdown("#### 한눈에 보는 FLOW 진단")
         q1, q2, q3 = st.columns(3)
         with q1:
@@ -845,6 +885,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div class="card" style="min-height:145px;">
                 <div class="label">상권 유형</div>
                 <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:9px;">{quick_type}</div>
+                <div class="subtext">유동 {traffic_score_round}점 · 소비 연결 {consumer_score_round}점</div>
                 </div>""", unsafe_allow_html=True
             )
         with q2:
@@ -863,9 +904,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                 <div class="subtext">구조가 비슷한 비교 기준</div>
                 </div>""", unsafe_allow_html=True
             )
-    
-    
-        # 3. TIME
+
+
+    # 3. TIME
     if page == "시간대 진단":
         st.markdown('<div class="section-title">3. 소비 연결이 상대적으로 약한 시간은?</div>', unsafe_allow_html=True)
     
