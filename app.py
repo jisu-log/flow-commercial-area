@@ -981,6 +981,10 @@ if st.session_state.show_result and st.session_state.selected_key:
                 <div style="font-size:28px;font-weight:850;color:#173c67;margin:5px 0 7px;">상권 고유 DEAD TIME 없음</div>
                 <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
                 업종·시간대 특성을 보정한 뒤 이 상권만의 뚜렷한 소비공백 시간은 확인되지 않았습니다.
+                </div>
+                <div style="font-size:14px;color:#607286;line-height:1.65;margin-top:7px;">
+                기대수준보다 실제 소비가 낮아 보이는 시간이 있더라도, 같은 업종에서도 공통적으로 낮다면
+                상권 고유 DEAD TIME으로 분류하지 않습니다.
                 </div></div>""", unsafe_allow_html=True
             )
 
@@ -990,7 +994,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
                 <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
                 <span style="font-size:14px;color:#6c604f;">
-                이 시간은 우리 상권만의 문제라기보다 같은 업종에서 전반적으로 소비 연결이 낮게 나타나는 시간입니다.
+                기대수준 대비 실제 소비가 낮지만, 같은 업종에서도 전반적으로 소비 연결이 낮게 나타나는 시간입니다.
+                따라서 <b>이 상권만의 DEAD TIME으로 분류하지 않았습니다.</b>
                 </span></div>""", unsafe_allow_html=True
             )
 
@@ -1040,6 +1045,18 @@ if st.session_state.show_result and st.session_state.selected_key:
             </div></div>""",
             unsafe_allow_html=True
         )
+
+        if common_low_times and not has_dead_time:
+            common_case = ", ".join(t.replace("~", "–") for t in common_low_times)
+            st.markdown(
+                f"""<div style="margin:-2px 0 14px;padding:10px 14px;border-left:4px solid #d49a3a;background:#fffaf1;
+                            font-size:14px;line-height:1.65;color:#5f5749;">
+                <b>현재 상권 판정:</b> {common_case}는 소비공백 신호가 보이지만
+                동일 업종·동일 시간대와 비교했을 때 이 상권만 유독 약한 시간으로 남지 않아
+                <b>업종 공통 저활성</b>으로 분류되었습니다.
+                </div>""",
+                unsafe_allow_html=True
+            )
 
         with st.expander("ⓘ 보정 기준과 시간대별 분류 자세히 보기"):
             st.write(
