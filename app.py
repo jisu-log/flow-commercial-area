@@ -1003,7 +1003,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                             font-size:16px;font-weight:800;color:#173c67;text-align:center;">
                     <span>① 기대보다 소비가 낮고</span>
                     <span style="color:#91a4b7;">→</span>
-                    <span>② 비슷한 조건의 상권 중 공백이 큰 편이며</span>
+                    <span>② 같은 업종·시간대 상권 중 공백이 큰 편이며</span>
                     <span style="color:#91a4b7;">→</span>
                     <span>③ 여러 분기에 반복될 때</span>
                 </div>
@@ -1017,20 +1017,25 @@ if st.session_state.show_result and st.session_state.selected_key:
         st.caption("※ 현재 분석에서는 00~06시를 제외하고, 2025년 4개 분기 중 기준을 2회 이상 충족한 경우를 반복 신호로 봅니다.")
 
         with st.expander("ⓘ 계산 기준을 조금 더 자세히 보기"):
-            st.markdown(
-                """
-**1. 모형 선택**  
-2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. 단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 검증 성능이 더 나은 모형을 사용합니다.
-
-**2. 상권 조건 반영**  
-확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, 20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다.
-
-**3. DEAD TIME 판정**  
-`예측 로그값 - 실제 로그값 > 0`이고, 같은 **분기·업종·시간대**의 다른 상권과 비교했을 때 그 차이가 **상위 10%**이며, 2025년 중 이 조건이 **2회 이상 반복**될 때 후보가 됩니다.
-
-**4. 분석 가능 시간**  
-00~06시는 제외하고, 2025년 4개 분기가 모두 관측되며 최소 한 분기 이상 실제 매출이 확인된 시간대만 판정합니다.
-                """
+            st.markdown("**1. 모형 선택**")
+            st.write(
+                "2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. "
+                "단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 검증 성능이 더 나은 모형을 사용합니다."
+            )
+            st.markdown("**2. 상권 조건 반영**")
+            st.write(
+                "확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, "
+                "20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다."
+            )
+            st.markdown("**3. DEAD TIME 판정**")
+            st.write(
+                "예측 로그값 - 실제 로그값 > 0이고, 같은 분기·업종·시간대의 다른 상권과 비교했을 때 "
+                "그 차이가 상위 10%이며, 2025년 중 이 조건이 2회 이상 반복될 때 후보가 됩니다."
+            )
+            st.markdown("**4. 분석 가능 시간**")
+            st.write(
+                "00~06시는 제외하고, 2025년 4개 분기가 모두 관측되며 최소 한 분기 이상 실제 매출이 "
+                "확인된 시간대만 판정합니다."
             )
             if has_dead_time and dead_index is not None:
                 tr = chart_rows.iloc[dead_index]
@@ -1188,7 +1193,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 )
                 _age_match = _age_match.sort_values("age_group")
     
-                with st.expander("연령대별 유동인구 구성 비교"):
+                with st.expander("연령대별 유동인구 구성 자세히 보기"):
                     st.caption(
                         "우리 상권과 비교 TWIN을 방문하는 유동인구의 연령 구성을 비교합니다. "
                         "특정 업종·시간대의 실제 구매 고객 연령을 의미하지 않습니다."
