@@ -105,6 +105,15 @@ st.markdown("""
     opacity: 0.95;
 }
 
+
+/* 제목에 마우스를 올렸을 때 나타나는 Streamlit 앵커(링크) 아이콘 숨김 */
+[data-testid="stHeaderActionElements"] {
+    display: none !important;
+}
+h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+    text-decoration: none !important;
+}
+
 .section-title {
     font-size: 27px;
     font-weight: 800;
@@ -388,7 +397,7 @@ st.sidebar.markdown(
 )
 page = st.sidebar.radio(
     "메뉴",
-    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  가게 점검", "05  Action Point"],
+    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  가게 점검"],
     label_visibility="collapsed"
 )
 page = {
@@ -396,7 +405,6 @@ page = {
     "02  시간대 진단": "시간대 진단",
     "03  비교 TWIN": "비교 TWIN",
     "04  가게 점검": "가게 점검",
-    "05  Action Point": "Action Point",
 }.get(page, page)
 st.sidebar.markdown("---")
 if st.session_state.get("selected_key"):
@@ -1244,9 +1252,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 )
 
         # 5. STORE DIAGNOSIS
-    if page in ["가게 점검", "Action Point"]:
-        if page == "Action Point":
-            st.info("Action Point는 가게 점검 응답을 바탕으로 생성됩니다. 아래 항목을 입력하면 우선 확인할 순서를 보여드립니다.")
+    if page == "가게 점검":
         st.markdown('<div class="section-title">5. 우리 가게에서는 무엇부터 확인해야 할까요?</div>', unsafe_allow_html=True)
         st.write(
             "여기부터는 **상권 분석 결과와 사장님의 응답을 함께 비교**합니다. "
