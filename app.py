@@ -826,7 +826,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
 
         if data["why"]:
-            st.markdown("#### 결과가 다른 이유를 살펴볼 비교 단서")
+            st.markdown("#### 두 상권은 무엇이 다를까요?")
             why_cols = st.columns(len(data["why"]))
             positive_features = []
             for i, (feature, diff, unit) in enumerate(data["why"]):
@@ -864,9 +864,17 @@ if st.session_state.show_result and st.session_state.selected_key:
                             value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
                             _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
                     else:
-                        direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
-                        value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
-                        _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
+                        direction = "우리 상권이 낮음" if diff < 0 else ("우리 상권이 높음" if diff > 0 else "두 상권이 비슷함")
+
+                        # 시간대/주말 등 '유동 비중' 변수는 twin_difference.csv에서
+                        # 0~1 비율의 '차이'만 제공하므로 %p로 변환해 표시합니다.
+                        # (양쪽 절대 비중값은 이 파일에 없으므로 임의로 만들지 않습니다.)
+                        if "유동 비중" in str(feature) and str(unit).strip() == "비율":
+                            value = abs(float(diff)) * 100
+                            _detail = f"<b>{direction}</b><br><b>{value:.1f}%p</b> 차이"
+                        else:
+                            value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
+                            _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
 
                     st.markdown(
                         f"""<div class="card" style="min-height:155px;">
