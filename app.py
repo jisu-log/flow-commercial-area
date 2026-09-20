@@ -260,104 +260,194 @@ region_df = load_region_data()
 available_codes = set(area_df["area_code"].astype(str).str.strip())
 region_flow = region_df[region_df["area_code"].isin(available_codes)].copy()
 
-st.markdown("#### 방법 1 · 구와 동으로 찾아보기")
-st.caption("자치구 → 행정동 → 상권 순서로 좁혀서 찾을 수 있습니다.")
 
-gu_options = sorted(region_flow["gu"].dropna().unique().tolist())
-selected_gu = st.selectbox(
-    "자치구 선택",
-    ["선택해주세요"] + gu_options,
-    key="region_gu"
-)
+# ─────────────────────────────────────────────
+# 상권 선택 UI — 두 경로를 탭으로 분리
+# ─────────────────────────────────────────────
+st.markdown("""
+<style>
+.finder-head{
+    margin:4px 0 16px;
+    padding:18px 20px;
+    border:1px solid #dfe8f1;
+    border-radius:16px;
+    background:#ffffff;
+}
+.finder-head .title{font-size:18px;font-weight:900;color:#18324a;margin-bottom:5px}
+.finder-head .sub{font-size:13px;color:#7b8996}
+.choice-summary{
+    background:#eef6ff;
+    border:1px solid #d5e7fa;
+    border-left:4px solid #1f5f99;
+    border-radius:12px;
+    padding:13px 16px;
+    margin:14px 0 12px;
+}
+.choice-summary .eyebrow{font-size:11px;font-weight:800;color:#71859a;margin-bottom:4px}
+.choice-summary .main{font-size:17px;font-weight:900;color:#173c67}
+.choice-summary .meta{font-size:12px;color:#687b8e;margin-top:4px}
+.step-hint{
+    font-size:12px;color:#83909b;margin:4px 0 10px;
+}
+div[data-baseweb="tab-list"]{
+    gap:8px;
+    background:#edf2f6;
+    padding:5px;
+    border-radius:12px;
+}
+button[data-baseweb="tab"]{
+    border-radius:9px;
+    font-weight:800;
+    padding-top:10px;
+    padding-bottom:10px;
+}
+</style>
 
-selected_area_label = None
+<div class="finder-head">
+  <div class="title">내 상권은 어떻게 찾을까요?</div>
+  <div class="sub">지역을 차례로 좁히거나, 알고 있는 상권명을 바로 검색할 수 있습니다.</div>
+</div>
+""", unsafe_allow_html=True)
+
 selected_code = None
+selected_area_label = None
+selected_gu_final = None
+selected_dong_final = None
 
-if selected_gu != "선택해주세요":
-    gu_region = region_flow[region_flow["gu"] == selected_gu].copy()
-    dong_options = sorted(gu_region["dong"].dropna().unique().tolist())
+tab_region, tab_search = st.tabs(["📍 지역으로 찾기", "⌕ 상권명 검색"])
 
-    selected_dong = st.selectbox(
-        "행정동 선택",
-        ["선택해주세요"] + dong_options,
-        key="region_dong"
+with tab_region:
+    st.markdown('<div class="step-hint">① 자치구 → ② 행정동 → ③ 상권</div>', unsafe_allow_html=True)
+
+    gu_options = sorted(region_flow["gu"].dropna().unique().tolist())
+    selected_gu = st.selectbox(
+        "① 자치구",
+        ["자치구를 선택해주세요"] + gu_options,
+        key="region_gu"
     )
 
-    if selected_dong != "선택해주세요":
-        dong_region = (
-            gu_region[gu_region["dong"] == selected_dong][["area", "area_code"]]
-            .drop_duplicates()
-            .sort_values(["area", "area_code"])
+    if selected_gu != "자치구를 선택해주세요":
+        gu_region = region_flow[region_flow["gu"] == selected_gu].copy()
+        dong_options = sorted(gu_region["dong"].dropna().unique().tolist())
+
+        selected_dong = st.selectbox(
+            "② 행정동",
+            ["행정동을 선택해주세요"] + dong_options,
+            key="region_dong"
         )
 
-        # 같은 이름의 상권이 있으면 코드까지 표시
-        dong_labels = {}
-        for row in dong_region.itertuples(index=False):
-            label = row.area
-            if (dong_region["area"] == row.area).sum() > 1:
-                label = f"{row.area} · {row.area_code}"
-            dong_labels[label] = str(row.area_code)
-
-        if dong_labels:
-            selected_area_label = st.selectbox(
-                "상권 선택",
-                list(dong_labels.keys()),
-                key="region_area"
+        if selected_dong != "행정동을 선택해주세요":
+            dong_region = (
+                gu_region[gu_region["dong"] == selected_dong][["area", "area_code"]]
+                .drop_duplicates()
+                .sort_values(["area", "area_code"])
             )
-            selected_code = dong_labels[selected_area_label]
-        else:
-            st.info("이 행정동에는 현재 FLOW 분석 결과와 연결되는 상권이 없습니다.")
 
-st.markdown("---")
-st.markdown("#### 방법 2 · 상권명으로 바로 검색하기")
-st.caption("구·동을 모르더라도 상권명 일부를 입력해 찾을 수 있습니다.")
+            dong_labels = {}
+            for row in dong_region.itertuples(index=False):
+                label = row.area
+                if (dong_region["area"] == row.area).sum() > 1:
+                    label = f"{row.area} · {row.area_code}"
+                dong_labels[label] = str(row.area_code)
 
-search_query = st.text_input(
-    "상권 검색",
-    placeholder="예: 광흥창, 신촌, 건대, 백산초등학교",
-    key="area_search_query"
-).strip()
+            if dong_labels:
+                area_choice = st.selectbox(
+                    "③ 상권",
+                    ["상권을 선택해주세요"] + list(dong_labels.keys()),
+                    key="region_area"
+                )
+                if area_choice != "상권을 선택해주세요":
+                    selected_area_label = area_choice
+                    selected_code = dong_labels[area_choice]
+                    selected_gu_final = selected_gu
+                    selected_dong_final = selected_dong
+            else:
+                st.info("이 행정동에는 현재 FLOW 분석 결과와 연결되는 상권이 없습니다.")
 
-if search_query:
-    search_pool = (
-        region_flow[region_flow["area"].str.contains(search_query, case=False, na=False)]
-        [["area", "area_code", "gu", "dong"]]
-        .drop_duplicates()
-        .sort_values(["area", "gu", "dong"])
-    )
+with tab_search:
+    st.markdown('<div class="step-hint">상권명 일부만 입력해도 검색됩니다.</div>', unsafe_allow_html=True)
+    search_query = st.text_input(
+        "상권명 검색",
+        placeholder="예: 광흥창, 신촌, 건대, 백산초등학교",
+        key="area_search_query"
+    ).strip()
 
-    if search_pool.empty:
-        st.warning("검색어와 일치하는 FLOW 분석 상권을 찾지 못했습니다.")
-    else:
-        search_labels = {}
-        for row in search_pool.itertuples(index=False):
-            label = f"{row.area} · {row.gu} {row.dong}"
-            if label in search_labels:
-                label = f"{label} · {row.area_code}"
-            search_labels[label] = str(row.area_code)
-
-        searched_label = st.selectbox(
-            f"검색 결과 · {len(search_labels)}곳",
-            list(search_labels.keys()),
-            key="searched_area"
+    if search_query:
+        search_pool = (
+            region_flow[region_flow["area"].str.contains(search_query, case=False, na=False)]
+            [["area", "area_code", "gu", "dong"]]
+            .drop_duplicates()
+            .sort_values(["area", "gu", "dong"])
         )
 
-        # 검색을 사용한 경우 검색 선택을 우선 적용
-        if searched_label:
-            selected_area_label = searched_label
-            selected_code = search_labels[searched_label]
+        if search_pool.empty:
+            st.warning("검색어와 일치하는 FLOW 분석 상권을 찾지 못했습니다.")
+        else:
+            search_labels = {}
+            search_meta = {}
+            for row in search_pool.itertuples(index=False):
+                label = f"{row.area} · {row.gu} {row.dong}"
+                if label in search_labels:
+                    label = f"{label} · {row.area_code}"
+                search_labels[label] = str(row.area_code)
+                search_meta[label] = (row.area, row.gu, row.dong)
 
+            searched_label = st.selectbox(
+                f"검색 결과 {len(search_labels)}곳",
+                ["검색 결과를 선택해주세요"] + list(search_labels.keys()),
+                key="searched_area"
+            )
+
+            if searched_label != "검색 결과를 선택해주세요":
+                selected_code = search_labels[searched_label]
+                selected_area_label, selected_gu_final, selected_dong_final = search_meta[searched_label]
+
+# 탭은 Streamlit rerun 때 양쪽 위젯이 모두 존재할 수 있으므로,
+# 실제 선택 완료된 값이 있으면 세션에 저장하여 공통 업종 단계에서 사용합니다.
 if selected_code is not None:
-    selected_code = str(selected_code)
-    selected_area_rows = area_df[area_df["area_code"].astype(str).str.strip() == selected_code].copy()
-    selected_area_name = selected_area_rows["area"].iloc[0]
+    st.session_state["finder_selected_code"] = str(selected_code)
+    st.session_state["finder_selected_area"] = selected_area_label
+    st.session_state["finder_selected_gu"] = selected_gu_final
+    st.session_state["finder_selected_dong"] = selected_dong_final
 
-    category_options = sorted(
-        selected_area_rows["category"].dropna().astype(str).unique().tolist()
-    )
-    selected_category = st.selectbox("업종 선택", category_options)
+selected_code = st.session_state.get("finder_selected_code")
+selected_area_label = st.session_state.get("finder_selected_area")
+selected_gu_final = st.session_state.get("finder_selected_gu")
+selected_dong_final = st.session_state.get("finder_selected_dong")
 
-    st.info(f"선택한 상권: **{selected_area_name}** · 업종: **{selected_category}**")
+if selected_code:
+    selected_area_rows = area_df[
+        area_df["area_code"].astype(str).str.strip() == str(selected_code)
+    ].copy()
+
+    if not selected_area_rows.empty:
+        selected_area_name = selected_area_rows["area"].iloc[0]
+        category_options = sorted(
+            selected_area_rows["category"].dropna().astype(str).unique().tolist()
+        )
+
+        st.markdown("---")
+        st.markdown("##### 분석 업종")
+        selected_category = st.selectbox(
+            "업종 선택",
+            category_options,
+            key=f"category_{selected_code}",
+            label_visibility="collapsed"
+        )
+
+        st.markdown(
+            f"""
+            <div class="choice-summary">
+              <div class="eyebrow">선택 완료</div>
+              <div class="main">{selected_area_name} · {selected_category}</div>
+              <div class="meta">{selected_gu_final or ''} {selected_dong_final or ''}</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        selected_category = None
+        st.warning("선택한 상권의 분석 데이터를 찾지 못했습니다.")
 else:
     selected_category = None
 
@@ -370,6 +460,7 @@ with st.expander("ⓘ 내가 어느 상권인지 잘 모르겠어요"):
 if st.button(
     "FLOW 진단하기 →",
     type="primary",
+    use_container_width=True,
     disabled=(selected_code is None or selected_category is None)
 ):
     st.session_state.selected_key = (selected_code, selected_category)
