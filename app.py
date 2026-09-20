@@ -714,9 +714,17 @@ if st.session_state.show_result and st.session_state.selected_key:
     else:
         common_low_times, unique_dead_times = [], []
 
-    twin_status = str(row.get("twin_status", "")).strip()
-    has_twin = twin_status == "적합한 비교 상권 있음"
+    # TWIN 존재 여부는 상태 문구 하나에만 의존하지 않고 실제 결과값으로 판정
+    twin_status = "" if pd.isna(row.get("twin_status", np.nan)) else str(row.get("twin_status")).strip()
     twin_gain = pd.to_numeric(row.get("twin_performance_gain", np.nan), errors="coerce")
+    twin_similarity = pd.to_numeric(row.get("similarity", np.nan), errors="coerce")
+    _twin_name_check = "" if pd.isna(row.get("twin_name", np.nan)) else str(row.get("twin_name")).strip()
+    has_twin = bool(
+        _twin_name_check
+        and _twin_name_check.lower() != "nan"
+        and pd.notna(twin_similarity) and twin_similarity >= 85
+        and pd.notna(twin_gain) and twin_gain > 0
+    )
 
     # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
     chart_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
@@ -1080,6 +1088,12 @@ if st.session_state.show_result and st.session_state.selected_key:
                     "FLOW SCORE가 선택 상권보다 높은 곳으로 제한합니다. 그 후보들 가운데 구조적으로 가장 유사한 상권을 선택합니다."
                 )
                 st.write("조건을 만족하는 상권이 없으면 '적합한 비교 상권 없음'으로 처리합니다.")
+                st.caption(
+                    f"현재 불러온 데이터: twin_name={row.get('twin_name', '—')} · "
+                    f"유사도={row.get('similarity', '—')} · "
+                    f"FLOW SCORE 차이={row.get('twin_performance_gain', '—')} · "
+                    f"상태={row.get('twin_status', '—')}"
+                )
         else:
             similarity_text = f"{data['similarity']:.1f}" if pd.notna(data["similarity"]) else "—"
             twin_score_text = f"{data['twin_conversion']:.1f}" if pd.notna(data["twin_conversion"]) else "—"
