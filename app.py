@@ -31,7 +31,6 @@ TIME_FILE = _find_csv("time_result_category_adjusted.csv")
 TWIN_FILE = _find_csv("twin_difference.csv")
 AGE_FILE = _find_csv("age_comparison.csv")
 
-@st.cache_data
 def load_analysis_data():
     area_df = pd.read_csv(AREA_FILE)
     time_df = pd.read_csv(TIME_FILE)
@@ -714,16 +713,26 @@ if st.session_state.show_result and st.session_state.selected_key:
     else:
         common_low_times, unique_dead_times = [], []
 
-    # 데이터팀이 이미 85점/FLOW SCORE 조건을 적용해 twin_name을 확정했으므로
-    # 앱에서는 조건을 다시 계산하지 않고 최종 산출값(twin_name)을 그대로 사용합니다.
+    # 데이터팀의 최종 TWIN 판정을 그대로 사용합니다.
+    # "없음"이면 twin_name에 어떤 값이 남아 있어도 절대 TWIN을 표시하지 않습니다.
     twin_status = "" if pd.isna(row.get("twin_status", np.nan)) else str(row.get("twin_status")).strip()
     twin_gain = pd.to_numeric(row.get("twin_performance_gain", np.nan), errors="coerce")
     twin_similarity = pd.to_numeric(row.get("similarity", np.nan), errors="coerce")
     _twin_name_check = "" if pd.isna(row.get("twin_name", np.nan)) else str(row.get("twin_name")).strip()
-    has_twin = bool(
-        _twin_name_check
-        and _twin_name_check.lower() not in ["nan", "none", "적합한 비교 상권 없음"]
-    )
+
+    if "없음" in twin_status:
+        has_twin = False
+    elif "있음" in twin_status:
+        has_twin = bool(
+            _twin_name_check
+            and _twin_name_check.lower() not in ["nan", "none", "적합한 비교 상권 없음"]
+        )
+    else:
+        # 상태값이 비정상/누락된 경우에만 twin_name을 보조적으로 사용
+        has_twin = bool(
+            _twin_name_check
+            and _twin_name_check.lower() not in ["nan", "none", "적합한 비교 상권 없음"]
+        )
 
     # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
     chart_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
@@ -946,7 +955,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div class="card" style="min-height:145px;">
                 <div class="label">비교해볼 상권</div>
                 <div style="font-size:21px;font-weight:850;color:#173c67;margin-top:9px;">{quick_twin}</div>
-                <div class="subtext">유동인구·시간대·연령대·상주/직장인구·점포·상권 규모 등 16개 특성이 비슷한 곳</div>
+                <div class="subtext">구조 유사도 85점 이상이면서 같은 업종의 FLOW SCORE가 더 높은 비교 상권</div>
                 </div>""", unsafe_allow_html=True
             )
 
