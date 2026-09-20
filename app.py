@@ -714,16 +714,15 @@ if st.session_state.show_result and st.session_state.selected_key:
     else:
         common_low_times, unique_dead_times = [], []
 
-    # TWIN 존재 여부는 상태 문구 하나에만 의존하지 않고 실제 결과값으로 판정
+    # 데이터팀이 이미 85점/FLOW SCORE 조건을 적용해 twin_name을 확정했으므로
+    # 앱에서는 조건을 다시 계산하지 않고 최종 산출값(twin_name)을 그대로 사용합니다.
     twin_status = "" if pd.isna(row.get("twin_status", np.nan)) else str(row.get("twin_status")).strip()
     twin_gain = pd.to_numeric(row.get("twin_performance_gain", np.nan), errors="coerce")
     twin_similarity = pd.to_numeric(row.get("similarity", np.nan), errors="coerce")
     _twin_name_check = "" if pd.isna(row.get("twin_name", np.nan)) else str(row.get("twin_name")).strip()
     has_twin = bool(
         _twin_name_check
-        and _twin_name_check.lower() != "nan"
-        and pd.notna(twin_similarity) and twin_similarity >= 85
-        and pd.notna(twin_gain) and twin_gain > 0
+        and _twin_name_check.lower() not in ["nan", "none", "적합한 비교 상권 없음"]
     )
 
     # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
@@ -918,7 +917,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         # QUICK SUMMARY
         # -----------------------------
         quick_type = f"유동 {traffic_label} · 소비 연결 {conversion_label}"
-        quick_twin = data["twin"] if data["twin"] else "비교 TWIN 없음"
+        quick_twin = data["twin"] if data["twin"] else "적합한 비교 상권 없음"
 
         st.markdown("#### 한눈에 보는 FLOW 진단")
         q1, q2, q3 = st.columns(3)
