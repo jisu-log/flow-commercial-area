@@ -26,18 +26,9 @@ def _find_csv(*names):
         f"필요한 CSV 파일을 찾지 못했습니다: {', '.join(names)}"
     )
 
-AREA_FILE = _find_csv(
-    "area_summary_category_adjusted.csv",
-    "area_summary.csv", "area_summary(1).csv"
-)
-TIME_FILE = _find_csv(
-    "time_result_category_adjusted.csv",
-    "time_result.csv", "time_result(1).csv"
-)
-TWIN_FILE = _find_csv(
-    "twin_difference(3).csv",
-    "twin_difference.csv", "twin_difference(1).csv"
-)
+AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
+TIME_FILE = _find_csv("time_result_category_adjusted.csv")
+TWIN_FILE = _find_csv("twin_difference.csv")
 AGE_FILE = _find_csv("age_comparison.csv")
 
 @st.cache_data
