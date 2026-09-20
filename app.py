@@ -29,7 +29,7 @@ def _find_csv(*names):
 AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
 TIME_FILE = _find_csv("time_result_category_adjusted.csv")
 TWIN_FILE = _find_csv("twin_difference.csv")
-AGE_FILE = _find_csv("age_comparison.csv")
+AGE_FILE = _find_csv("age_comparison (1).csv", "age_comparison(1).csv", "age_comparison.csv")
 
 def load_analysis_data():
     area_df = pd.read_csv(AREA_FILE)
@@ -60,6 +60,11 @@ def load_age_comparison():
     df = pd.read_csv(AGE_FILE, encoding="utf-8-sig")
     df["area_code"] = df["area_code"].astype(str).str.strip()
     df["category"] = df["category"].astype(str).str.strip()
+    df["twin_name"] = df["twin_name"].astype("string").str.strip()
+    # 연령 비교 수치는 숫자로만 변환하되 결측값은 0으로 치환하지 않습니다.
+    for col in ["area_share", "twin_share", "difference_pp", "similarity"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
 age_df = load_age_comparison()
@@ -1356,9 +1361,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                         "특정 업종·시간대의 실제 구매 고객 연령을 의미하지 않습니다."
                     )
                     age_display = _age_match[["age_group", "area_share", "twin_share", "difference_pp"]].copy()
-                    age_display["우리 상권"] = (age_display["area_share"] * 100).map(lambda x: f"{x:.1f}%")
-                    age_display["비교 TWIN"] = (age_display["twin_share"] * 100).map(lambda x: f"{x:.1f}%")
-                    age_display["차이"] = age_display["difference_pp"].map(lambda x: f"{x:+.1f}%p")
+                    age_display["우리 상권"] = (age_display["area_share"] * 100).map(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
+                    age_display["비교 TWIN"] = (age_display["twin_share"] * 100).map(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
+                    age_display["차이"] = age_display["difference_pp"].map(lambda x: f"{x:+.1f}%p" if pd.notna(x) else "—")
                     age_display = age_display.rename(columns={"age_group": "연령대"})
                     st.dataframe(age_display[["연령대", "우리 상권", "비교 TWIN", "차이"]],
                                  hide_index=True, use_container_width=True)
@@ -1431,21 +1436,30 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
     
             if store_weak != "선택해주세요":
-                same_time = store_weak == dead_time
+                same_time = store_weak in unique_dead_times
     
                 if same_time:
                     result_title = "상권과 내 가게가 같은 시간대에서 약합니다."
                     result_desc = (
-                        f"상권에서도 {dead_time}의 소비공백이 가장 크고, 사장님이 입력한 가게의 취약시간도 {store_weak}입니다. "
-                        "점포만의 문제로 단정하기보다 상권 공통 패턴과 점포 운영을 함께 비교해볼 필요가 있습니다."
+                        f"상권에서도 {store_weak}이 상권 고유 DEAD TIME 후보로 나타났고, "
+                        f"사장님이 입력한 가게의 취약시간도 {store_weak}입니다. "
+                        "점포만의 문제로 단정하기보다 상권 패턴과 점포 운영을 함께 비교해볼 필요가 있습니다."
                     )
-                    badge = "상권 공통 패턴 가능성도 함께 확인"
+                    badge = "상권 패턴 가능성도 함께 확인"
                 else:
-                    result_title = "상권보다 내 가게의 개별 문제를 먼저 확인해보세요."
-                    result_desc = (
-                        f"상권 전체에서는 {dead_time}의 소비공백이 가장 크지만, 사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
-                        "상권 평균과 다른 패턴이므로 먼저 점포 내부의 운영·입점·구매 과정을 비교해보는 편이 타당합니다."
-                    )
+                    result_title = "내 가게의 개별 패턴을 먼저 확인해보세요."
+                    if has_dead_time:
+                        result_desc = (
+                            f"상권에서는 {dead_time}이 상권 고유 DEAD TIME 후보지만, "
+                            f"사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
+                            "상권과 다른 패턴이므로 먼저 점포 내부의 운영·입점·구매 과정을 비교해보는 편이 타당합니다."
+                        )
+                    else:
+                        result_desc = (
+                            f"상권에서는 뚜렷한 고유 DEAD TIME이 확인되지 않았지만, "
+                            f"사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
+                            "점포 기록을 통해 이 시간대의 운영·입점·구매 과정을 먼저 확인해보세요."
+                        )
                     badge = "점포 개별 패턴 우선 점검"
     
                 st.markdown('<div style="font-size:18px;font-weight:850;color:#18324a;margin:22px 0 10px;">맞춤 점검 결과</div>', unsafe_allow_html=True)
@@ -1529,20 +1543,26 @@ if st.session_state.show_result and st.session_state.selected_key:
     
                 # Priority 3: relation to area pattern
                 if same_time:
-                    p3_title = f"{dead_time}을 비교상권과 함께 보세요"
+                    p3_title = f"{store_weak}을 비교상권과 함께 보세요"
                     p3_text = (
-                        f"내 가게와 상권의 취약시간이 모두 {dead_time}입니다. "
-                        f"FLOW의 상권 데이터와 유사상권 비교 결과를 함께 참고할 수 있습니다. "
-                        "점포 기록을 확보한 뒤 이 시간대의 차이를 우선 비교해볼 가치가 있습니다."
+                        f"내 가게의 취약시간인 {store_weak}이 상권 고유 DEAD TIME 후보에도 포함됩니다. "
+                        "FLOW의 상권 시간대 결과와 비교 TWIN을 함께 참고하고, 점포 기록을 확보한 뒤 차이를 비교해보세요."
                     )
                     p3_how = "FLOW 보유: 상권 시간대 결과 · 비교 TWIN 비교"
-                else:
-                    p3_title = f"상권의 {dead_time} 소비공백은 다음으로 확인하세요"
+                elif has_dead_time:
+                    p3_title = f"상권의 {dead_time}도 함께 확인하세요"
                     p3_text = (
                         f"현재 사장님 가게는 {store_weak}이 더 약하다고 응답했습니다. "
-                        f"먼저 점포 기록으로 {store_weak}의 문제를 확인하고, 이후 상권 공통 취약시간인 {dead_time} 대응을 검토하세요."
+                        f"먼저 점포 기록으로 {store_weak}을 확인하고, 이후 상권 고유 DEAD TIME 후보인 {dead_time}도 함께 비교해보세요."
                     )
-                    p3_how = "FLOW 보유: 상권 취약시간 / 점포 데이터: 사장님 확인 필요"
+                    p3_how = "FLOW 보유: 상권 DEAD TIME / 점포 데이터: 사장님 확인 필요"
+                else:
+                    p3_title = f"{store_weak}의 점포 기록을 우선 확인하세요"
+                    p3_text = (
+                        "상권에서는 뚜렷한 고유 DEAD TIME이 확인되지 않았습니다. "
+                        f"따라서 {store_weak}의 취약 현상이 점포에서만 나타나는지 통행·입점·주문 기록으로 먼저 확인해보세요."
+                    )
+                    p3_how = "FLOW 보유: 상권 시간대 결과 / 점포 데이터: 사장님 확인 필요"
     
                 st.markdown('<div style="font-size:18px;font-weight:850;color:#18324a;margin:24px 0 10px;">FLOW ACTION · 확인 순서</div>', unsafe_allow_html=True)
                 ac1, ac2, ac3 = st.columns(3)
