@@ -699,17 +699,9 @@ if st.session_state.show_result and st.session_state.selected_key:
         (time_rows["time"].astype(str) != "00~06") & eligible
     ].copy()
 
-    # DEAD TIME은 업종·시간대 보정이 반영된 최종 결과를 사용합니다.
-    dead_time_raw = row.get("adjusted_dead_time", row.get("dead_time", ""))
-    dead_time = "" if pd.isna(dead_time_raw) else str(dead_time_raw).strip()
-    has_dead_time = bool(
-        dead_time and dead_time.lower() != "nan"
-        and dead_time != "뚜렷한 DEAD TIME 없음"
-    )
-    if not has_dead_time:
-        dead_time = "뚜렷한 DEAD TIME 없음"
-
     # 시간대 분류: 정상 / 업종 공통 저활성 / 상권 고유 DEAD TIME 후보
+    # area_summary의 adjusted_dead_time은 여러 후보 중 대표 1개만 담고 있으므로,
+    # 화면에서는 time_result의 최종 판정을 이용해 모든 DEAD TIME 후보를 표시합니다.
     if "dead_time_class" in time_rows.columns:
         class_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
         common_low_times = class_rows.loc[
@@ -720,6 +712,13 @@ if st.session_state.show_result and st.session_state.selected_key:
         ].astype(str).tolist()
     else:
         common_low_times, unique_dead_times = [], []
+
+    # 대표 DEAD TIME은 데이터팀 area_summary 정의를 유지하되,
+    # 실제 화면의 DEAD TIME 존재 여부와 목록은 전체 후보를 기준으로 합니다.
+    dead_time_raw = row.get("adjusted_dead_time", row.get("dead_time", ""))
+    representative_dead_time = "" if pd.isna(dead_time_raw) else str(dead_time_raw).strip()
+    has_dead_time = len(unique_dead_times) > 0
+    dead_time = " · ".join(unique_dead_times) if has_dead_time else "뚜렷한 DEAD TIME 없음"
 
     # 데이터팀의 최종 TWIN 판정을 그대로 사용합니다.
     # "없음"이면 twin_name에 어떤 값이 남아 있어도 절대 TWIN을 표시하지 않습니다.
@@ -756,11 +755,15 @@ if st.session_state.show_result and st.session_state.selected_key:
     potential = chart_rows["potential"].astype(float).to_numpy()
     actual = chart_rows["actual"].astype(float).to_numpy()
 
-    if has_dead_time and dead_time in times:
-        dead_index = times.index(dead_time)
-        dead_gap = float(potential[dead_index] - actual[dead_index])
+    dead_indices = [
+        times.index(t) for t in unique_dead_times if t in times
+    ]
+    if representative_dead_time in times:
+        representative_dead_index = times.index(representative_dead_time)
+        dead_gap = float(potential[representative_dead_index] - actual[representative_dead_index])
+    elif dead_indices:
+        dead_gap = float(potential[dead_indices[0]] - actual[dead_indices[0]])
     else:
-        dead_index = None
         dead_gap = np.nan
 
     # 비교 TWIN 차이 TOP3
@@ -1010,12 +1013,12 @@ if st.session_state.show_result and st.session_state.selected_key:
 
         time_df = pd.DataFrame({
             "시간대": data["times"],
-            "모형 기대수준": data["potential"],
+            "상권 특성 기반 기대수준": data["potential"],
             "실제 매출건수": data["actual"]
         })
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["모형 기대수준"],
-                             name="모형 기대수준", marker_color="#A8C7E8"))
+        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["상권 특성 기반 기대수준"],
+                             name="상권 특성 기반 기대수준", marker_color="#A8C7E8"))
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["실제 매출건수"],
                              name="실제 매출건수", marker_color="#245B91"))
         fig.update_layout(
@@ -1031,17 +1034,20 @@ if st.session_state.show_result and st.session_state.selected_key:
             ),
             xaxis=dict(showgrid=False, title=""), bargap=0.28
         )
-        if has_dead_time and dead_index is not None:
-            fig.add_vrect(x0=dead_index - 0.45, x1=dead_index + 0.45,
-                          fillcolor="rgba(255,177,85,0.14)", line_width=0, layer="below")
+        if has_dead_time:
+            for dead_index in dead_indices:
+                fig.add_vrect(x0=dead_index - 0.45, x1=dead_index + 0.45,
+                              fillcolor="rgba(255,177,85,0.14)", line_width=0, layer="below")
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         st.markdown(
             """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:12px 16px;margin:4px 0 14px;">
             <div style="font-weight:800;color:#173c67;margin-bottom:5px;">그래프는 이렇게 읽어요</div>
             <div style="font-size:14px;line-height:1.65;color:#526579;">
-            연한 막대는 <b>모형 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
-            DEAD TIME은 이 막대 차이만으로 정하지 않고, <b>상권 내부 순위와 동일 업종·동일 시간대 비교</b>를 함께 봅니다.
+            연한 막대는 <b>상권 특성 기반 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
+            기대수준은 목표 매출이나 미래 매출 예측값이 아니라, <b>시간대별 소비 연결의 상대적 공백을 찾기 위한 비교 기준</b>입니다.
+            특정 시간대의 실제 매출건수가 높다고 해서 해당 업종이 그 시간대에 일반적으로 장사가 잘된다는 의미는 아닙니다.
+            DEAD TIME은 막대 차이만으로 정하지 않고, <b>상권 내부 순위와 동일 업종·동일 시간대 비교</b>를 함께 봅니다.
             </div></div>""", unsafe_allow_html=True
         )
 
