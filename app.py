@@ -994,8 +994,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
                 <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
                 <span style="font-size:14px;color:#6c604f;">
-                기대수준 대비 실제 소비가 낮지만, 같은 업종에서도 전반적으로 소비 연결이 낮게 나타나는 시간입니다.
-                따라서 <b>이 상권만의 DEAD TIME으로 분류하지 않았습니다.</b>
+                소비공백 신호가 나타났지만, 동일 업종·동일 시간대 상권들과 비교했을 때
+                <b>이 상권만 유독 큰 공백으로 보기는 어려운 시간입니다.</b>
+                따라서 상권 고유 DEAD TIME으로 분류하지 않았습니다.
                 </span></div>""", unsafe_allow_html=True
             )
 
@@ -1013,7 +1014,13 @@ if st.session_state.show_result and st.session_state.selected_key:
             barmode="group", height=390, margin=dict(l=15, r=15, t=50, b=15),
             plot_bgcolor="white", paper_bgcolor="white",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis=dict(gridcolor="#e9eef3", title="", showticklabels=False),
+            yaxis=dict(
+                gridcolor="#e9eef3",
+                title=dict(text="소비 수준 (건)", font=dict(size=13, color="#526579")),
+                showticklabels=True,
+                tickfont=dict(size=11, color="#607286"),
+                rangemode="tozero"
+            ),
             xaxis=dict(showgrid=False, title=""), bargap=0.28
         )
         if has_dead_time and dead_index is not None:
@@ -1051,9 +1058,9 @@ if st.session_state.show_result and st.session_state.selected_key:
             st.markdown(
                 f"""<div style="margin:-2px 0 14px;padding:10px 14px;border-left:4px solid #d49a3a;background:#fffaf1;
                             font-size:14px;line-height:1.65;color:#5f5749;">
-                <b>현재 상권 판정:</b> {common_case}는 소비공백 신호가 보이지만
-                동일 업종·동일 시간대와 비교했을 때 이 상권만 유독 약한 시간으로 남지 않아
-                <b>업종 공통 저활성</b>으로 분류되었습니다.
+                <b>현재 상권 판정:</b> {common_case}는 우리 상권 내에서는 소비공백이 큰 편이지만,
+                동일 업종·동일 시간대 비교에서 <b>상위 10% 기준에 들지 않아</b>
+                상권 고유 DEAD TIME에서 제외되었습니다.
                 </div>""",
                 unsafe_allow_html=True
             )
@@ -1154,7 +1161,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     <div style="font-size:21px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
                     <div style="font-size:14px;color:#607286;">FLOW SCORE</div>
                     <div style="font-size:27px;font-weight:850;color:#245B91;margin-top:5px;">{twin_score_text}점</div>
-                    <div style="font-size:13px;color:#607286;margin-top:4px;">우리 상권 대비 {gain_text}</div>
+                    <div style="font-size:15px;font-weight:800;color:#245B91;margin-top:7px;">↑ 우리 상권보다 {gain_text}</div>
                     </div>""", unsafe_allow_html=True
                 )
 
@@ -1162,7 +1169,11 @@ if st.session_state.show_result and st.session_state.selected_key:
 
             if data["why"]:
                 st.markdown("#### 두 상권에서 차이가 큰 특성 TOP 3")
-                st.caption("16개 구조 특성 중 두 상권의 차이가 상대적으로 크게 나타난 항목을 보여줍니다.")
+                st.caption(
+                    "16개 구조 특성 중 두 상권의 차이가 상대적으로 큰 3개입니다. "
+                    "TWIN의 높은 FLOW SCORE를 설명하는 원인으로 확정한 결과는 아니며, "
+                    "점포 운영에서 확인해볼 비교 단서입니다."
+                )
                 why_cols = st.columns(len(data["why"]))
                 for i, (feature, diff, unit) in enumerate(data["why"]):
                     with why_cols[i]:
@@ -1181,7 +1192,6 @@ if st.session_state.show_result and st.session_state.selected_key:
                             <div style="font-size:14px;line-height:1.6;"><b>{direction}</b><br>{value_text}</div>
                             </div>""", unsafe_allow_html=True
                         )
-                st.caption("※ 위 차이는 성과 차이의 원인으로 확정한 결과가 아니라, 점포 운영에서 추가로 확인할 비교 단서입니다.")
 
             # age_comparison.csv가 새 TWIN과 일치할 때만 연령 상세표를 사용합니다.
             _age_match = age_df[
@@ -1211,6 +1221,10 @@ if st.session_state.show_result and st.session_state.selected_key:
                 st.write(
                     "동일 업종 상권 중 구조 유사도 85점 이상이면서 FLOW SCORE가 우리 상권보다 높은 곳만 후보가 됩니다. "
                     "그 후보들 가운데 16개 구조 특성이 가장 유사한 상권을 비교 TWIN으로 선택합니다."
+                )
+                st.info(
+                    "유사도 85점은 16개 구조 특성의 업종 내 상대적 위치가 충분히 비슷하다는 선정 기준입니다. "
+                    "두 상권의 실제 특성이 85% 일치한다는 뜻은 아닙니다."
                 )
                 st.markdown(
                     """
