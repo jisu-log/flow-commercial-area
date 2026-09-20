@@ -26,9 +26,18 @@ def _find_csv(*names):
         f"필요한 CSV 파일을 찾지 못했습니다: {', '.join(names)}"
     )
 
-AREA_FILE = _find_csv("area_summary.csv", "area_summary(1).csv")
-TIME_FILE = _find_csv("time_result.csv", "time_result(1).csv")
-TWIN_FILE = _find_csv("twin_difference.csv", "twin_difference(1).csv")
+AREA_FILE = _find_csv(
+    "area_summary_category_adjusted.csv",
+    "area_summary.csv", "area_summary(1).csv"
+)
+TIME_FILE = _find_csv(
+    "time_result_category_adjusted.csv",
+    "time_result.csv", "time_result(1).csv"
+)
+TWIN_FILE = _find_csv(
+    "twin_difference(3).csv",
+    "twin_difference.csv", "twin_difference(1).csv"
+)
 AGE_FILE = _find_csv("age_comparison.csv")
 
 @st.cache_data
@@ -692,14 +701,31 @@ if st.session_state.show_result and st.session_state.selected_key:
         (time_rows["time"].astype(str) != "00~06") & eligible
     ].copy()
 
-    # DEAD TIME은 R 핵심분석의 최종 판정 결과(area_summary)를 그대로 사용
-    dead_time = str(row.get("dead_time", "")).strip()
+    # DEAD TIME은 업종·시간대 보정이 반영된 최종 결과를 사용합니다.
+    dead_time_raw = row.get("adjusted_dead_time", row.get("dead_time", ""))
+    dead_time = "" if pd.isna(dead_time_raw) else str(dead_time_raw).strip()
     has_dead_time = bool(
         dead_time and dead_time.lower() != "nan"
         and dead_time != "뚜렷한 DEAD TIME 없음"
     )
     if not has_dead_time:
         dead_time = "뚜렷한 DEAD TIME 없음"
+
+    # 시간대 분류: 정상 / 업종 공통 저활성 / 상권 고유 DEAD TIME 후보
+    if "dead_time_class" in time_rows.columns:
+        class_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
+        common_low_times = class_rows.loc[
+            class_rows["dead_time_class"].astype(str).eq("업종 공통 저활성 시간대"), "time"
+        ].astype(str).tolist()
+        unique_dead_times = class_rows.loc[
+            class_rows["dead_time_class"].astype(str).eq("상권 고유 DEAD TIME 후보"), "time"
+        ].astype(str).tolist()
+    else:
+        common_low_times, unique_dead_times = [], []
+
+    twin_status = str(row.get("twin_status", "")).strip()
+    has_twin = twin_status == "적합한 비교 상권 있음"
+    twin_gain = pd.to_numeric(row.get("twin_performance_gain", np.nan), errors="coerce")
 
     # 차트용 시간대: 기존 서비스와 동일하게 06~24 중심
     chart_rows = time_rows[time_rows["time"].astype(str) != "00~06"].copy()
@@ -725,6 +751,8 @@ if st.session_state.show_result and st.session_state.selected_key:
     # 비교 TWIN 차이 TOP3
     twin_name_raw = row.get("twin_name", np.nan)
     twin_name = "" if pd.isna(twin_name_raw) else str(twin_name_raw).strip()
+    if not has_twin:
+        twin_name = ""
     twin_rows = twin_df_all[
         (twin_df_all["area"] == area) &
         (twin_df_all["category"] == str(category))
@@ -749,6 +777,8 @@ if st.session_state.show_result and st.session_state.selected_key:
         "twin": twin_name,
         "similarity": float(row["similarity"]) if pd.notna(row["similarity"]) else np.nan,
         "twin_conversion": float(row["twin_conversion"]) if pd.notna(row["twin_conversion"]) else np.nan,
+        "twin_performance_gain": float(twin_gain) if pd.notna(twin_gain) else np.nan,
+        "twin_status": twin_status,
         "why": why,
     }
 
@@ -930,23 +960,31 @@ if st.session_state.show_result and st.session_state.selected_key:
         if has_dead_time:
             st.markdown(
                 f"""<div class="action-box">
-                <div class="label">FLOW 기준을 충족한 우선 점검 시간</div>
+                <div class="label">상권 고유 DEAD TIME 후보</div>
                 <div style="font-size:34px;font-weight:850;color:#a55c00;margin:5px 0 7px;">{dead_time}</div>
                 <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
-                같은 업종·같은 시간대의 다른 상권과 비교했을 때 소비 공백이 매우 크고,
-                이러한 현상이 반복된 시간입니다.
+                우리 상권 안에서도 소비 연결이 약하고, 같은 업종·같은 시간대의 다른 상권과 비교해도
+                공백이 큰 시간으로 남았습니다.
                 </div></div>""", unsafe_allow_html=True
             )
         else:
             st.markdown(
                 """<div class="action-box" style="border-left-color:#245B91;background:#f5f9fd;">
                 <div class="label">시간대 진단 결과</div>
-                <div style="font-size:28px;font-weight:850;color:#173c67;margin:5px 0 7px;">뚜렷한 우선 점검 시간 없음</div>
+                <div style="font-size:28px;font-weight:850;color:#173c67;margin:5px 0 7px;">상권 고유 DEAD TIME 없음</div>
                 <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
-                현재 선택한 상권·업종에서는 FLOW의 DEAD TIME 기준을 충족하는 시간대가 확인되지 않았습니다.
-                </div>
-                <div class="subtext">따라서 특정 시간대를 억지로 문제 시간으로 지정하지 않습니다.</div>
-                </div>""", unsafe_allow_html=True
+                업종·시간대 특성을 보정한 뒤 이 상권만의 뚜렷한 소비공백 시간은 확인되지 않았습니다.
+                </div></div>""", unsafe_allow_html=True
+            )
+
+        if common_low_times:
+            common_text = ", ".join(t.replace("~", "–") for t in common_low_times)
+            st.markdown(
+                f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
+                <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
+                <span style="font-size:14px;color:#6c604f;">
+                이 시간은 우리 상권만의 문제라기보다 같은 업종에서 전반적으로 소비 연결이 낮게 나타나는 시간입니다.
+                </span></div>""", unsafe_allow_html=True
             )
 
         time_df = pd.DataFrame({
@@ -954,15 +992,13 @@ if st.session_state.show_result and st.session_state.selected_key:
             "모형 기대수준": data["potential"],
             "실제 매출건수": data["actual"]
         })
-
         fig = go.Figure()
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["모형 기대수준"],
                              name="모형 기대수준", marker_color="#A8C7E8"))
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["실제 매출건수"],
                              name="실제 매출건수", marker_color="#245B91"))
         fig.update_layout(
-            barmode="group", height=390,
-            margin=dict(l=15, r=15, t=50, b=15),
+            barmode="group", height=390, margin=dict(l=15, r=15, t=50, b=15),
             plot_bgcolor="white", paper_bgcolor="white",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             yaxis=dict(gridcolor="#e9eef3", title="", showticklabels=False),
@@ -977,226 +1013,160 @@ if st.session_state.show_result and st.session_state.selected_key:
             """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:12px 16px;margin:4px 0 14px;">
             <div style="font-weight:800;color:#173c67;margin-bottom:5px;">그래프는 이렇게 읽어요</div>
             <div style="font-size:14px;line-height:1.65;color:#526579;">
-            연한 막대는 <b>모형이 계산한 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
-            이 그래프는 시간대별 패턴을 비교하기 위한 보조 자료이며,
-            <b>막대 차이만으로 DEAD TIME을 정하지 않습니다.</b>
+            연한 막대는 <b>모형 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
+            DEAD TIME은 이 막대 차이만으로 정하지 않고, <b>상권 내부 순위와 동일 업종·동일 시간대 비교</b>를 함께 봅니다.
             </div></div>""", unsafe_allow_html=True
         )
 
-        if has_dead_time:
-            st.info(f"{dead_time}은 아래 세 조건을 모두 충족해 우선 점검 시간으로 분류됐습니다.")
-        else:
-            st.info("현재 세 조건을 모두 충족한 시간대가 없습니다. 그래프는 시간대별 패턴을 참고하기 위한 보조 자료입니다.")
-
-        st.markdown("#### FLOW는 언제 DEAD TIME으로 판단하나요?")
+        st.markdown("#### 업종 특성까지 보정해서 판단합니다")
         st.markdown(
-            """
-            <div style="
-                background:white;
-                border:1px solid #dfe7ef;
-                border-radius:14px;
-                padding:16px 18px;
-                margin:4px 0 8px;
-                box-shadow:0 3px 12px rgba(20,50,80,0.04);
-            ">
-                <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
-                            font-size:16px;font-weight:800;color:#173c67;text-align:center;">
-                    <span>① 기대보다 소비가 낮고</span>
-                    <span style="color:#91a4b7;">→</span>
-                    <span>② 같은 업종·시간대 상권 중 공백이 큰 편이며</span>
-                    <span style="color:#91a4b7;">→</span>
-                    <span>③ 여러 분기에 반복될 때</span>
-                </div>
-                <div style="text-align:center;font-size:14px;color:#607286;margin-top:10px;">
-                    세 조건을 모두 만족하는 시간만 우선 점검 시간으로 표시합니다.
-                </div>
+            """<div style="background:white;border:1px solid #dfe7ef;border-radius:14px;padding:16px 18px;margin:4px 0 8px;
+                          box-shadow:0 3px 12px rgba(20,50,80,0.04);">
+            <div style="display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+                        font-size:16px;font-weight:800;color:#173c67;text-align:center;">
+                <span>① 기존 소비공백 신호</span><span style="color:#91a4b7;">→</span>
+                <span>② 우리 상권 안에서도 약함</span><span style="color:#91a4b7;">→</span>
+                <span>③ 같은 업종·시간대와 비교해도 유독 약함</span>
             </div>
-            """,
+            <div style="text-align:center;font-size:14px;color:#607286;margin-top:10px;">
+                업종 전체가 원래 약한 시간은 분리하고, 이 상권에서 유독 약한 시간만 DEAD TIME 후보로 남깁니다.
+            </div></div>""",
             unsafe_allow_html=True
         )
-        st.caption("※ 현재 분석에서는 00~06시를 제외하고, 2025년 4개 분기 중 기준을 2회 이상 충족한 경우를 반복 신호로 봅니다.")
 
-        with st.expander("ⓘ 계산 기준을 조금 더 자세히 보기"):
-            st.markdown("**1. 모형 선택**")
+        with st.expander("ⓘ 보정 기준과 시간대별 분류 자세히 보기"):
             st.write(
-                "2021~2024년 자료로 학습하고 2025년 자료에서 검증합니다. "
-                "단순 유동모형과 상권특성 확장모형의 RMSE를 비교해 검증 성능이 더 나은 모형을 사용합니다."
+                "기존 DEAD TIME 후보를 출발점으로 사용하고, 상권 내부 시간대 gap 순위와 "
+                "동일 업종·동일 시간대의 다른 상권 분포를 추가로 비교합니다."
             )
-            st.markdown("**2. 상권 조건 반영**")
             st.write(
-                "확장모형에는 시간대 유동인구, 상주인구, 직장인구, 유사업종 점포 수, 상권 면적, "
-                "20대·30대 유동 비중, 주말 유동 비중, 직장/상주 구조, 업종, 시간대, 연도, 분기가 포함됩니다."
+                "최종 보정 후보는 기존 후보이면서 상권 내부 gap 상위 25%에 해당하고, "
+                "동일 업종·동일 시간대 비교에서 gap이 상위 10%이며 해당 그룹의 중앙값보다 큰 경우입니다."
             )
-            st.markdown("**3. DEAD TIME 판정**")
-            st.write(
-                "예측 로그값 - 실제 로그값 > 0이고, 같은 분기·업종·시간대의 다른 상권과 비교했을 때 "
-                "그 차이가 상위 10%이며, 2025년 중 이 조건이 2회 이상 반복될 때 후보가 됩니다."
-            )
-            st.markdown("**4. 분석 가능 시간**")
-            st.write(
-                "00~06시는 제외하고, 2025년 4개 분기가 모두 관측되며 최소 한 분기 이상 실제 매출이 "
-                "확인된 시간대만 판정합니다."
-            )
-            if has_dead_time and dead_index is not None:
-                tr = chart_rows.iloc[dead_index]
-                gp = pd.to_numeric(tr.get("gap_percentile", np.nan), errors="coerce")
-                rd = pd.to_numeric(tr.get("repeat_dead", np.nan), errors="coerce")
-                gl = pd.to_numeric(tr.get("gap_log", np.nan), errors="coerce")
-                st.info(
-                    f"현재 {dead_time}: 로그 차이 {gl:.2f} · "
-                    f"동일 비교집단 내 상대 위치 {gp*100:.0f}% · 반복 {rd:.0f}회"
+            detail_cols = [
+                "time", "dead_time_class", "within_area_gap_percentile",
+                "peer_gap_percentile", "category_baseline", "relative_gap"
+            ]
+            available_cols = [c for c in detail_cols if c in chart_rows.columns]
+            detail = chart_rows[available_cols].copy()
+            if "time" in detail.columns:
+                detail["time"] = detail["time"].astype(str).str.replace("~", "–", regex=False)
+                detail = detail.rename(columns={"time": "시간대"})
+            if "dead_time_class" in detail.columns:
+                detail = detail.rename(columns={"dead_time_class": "분류"})
+            if "within_area_gap_percentile" in detail.columns:
+                detail["상권 내부 위치"] = pd.to_numeric(detail["within_area_gap_percentile"], errors="coerce").map(
+                    lambda x: "—" if pd.isna(x) else f"{x*100:.0f}%"
                 )
-            else:
-                st.info(
-                    "현재 선택한 상권·업종은 위 조건을 모두 충족한 시간대가 없어 "
-                    "'뚜렷한 DEAD TIME 없음'으로 분류됩니다."
+            if "peer_gap_percentile" in detail.columns:
+                detail["동일 업종·시간대 위치"] = pd.to_numeric(detail["peer_gap_percentile"], errors="coerce").map(
+                    lambda x: "—" if pd.isna(x) else f"{x*100:.0f}%"
                 )
+            show_cols = [c for c in ["시간대", "분류", "상권 내부 위치", "동일 업종·시간대 위치"] if c in detail.columns]
+            st.dataframe(detail[show_cols], hide_index=True, use_container_width=True)
+            st.caption(
+                "※ percentile은 같은 비교집단 안에서의 상대적 위치입니다. "
+                "높을수록 소비공백(gap)이 상대적으로 큰 편이라는 뜻입니다."
+            )
 
         # 4. TWIN
     if page == "비교 TWIN":
-        st.markdown('<div class="section-title">4. 비슷한 조건의 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
-    
-        if not data["twin"]:
-            st.info("현재 조건에서 성과가 더 높은 유사상권을 찾지 못했습니다.")
+        st.markdown('<div class="section-title">4. 비슷하지만 더 잘되는 상권과 비교해볼까요?</div>', unsafe_allow_html=True)
+
+        if not has_twin or not data["twin"]:
+            st.markdown(
+                """<div class="action-box" style="border-left-color:#245B91;background:#f5f9fd;">
+                <div class="label">비교 TWIN 결과</div>
+                <div style="font-size:27px;font-weight:850;color:#173c67;margin:5px 0 7px;">적합한 비교 상권 없음</div>
+                <div style="font-size:15px;line-height:1.65;color:#526579;">
+                구조 유사도 85점 이상이면서 같은 업종의 FLOW SCORE가 우리 상권보다 높은 상권을 찾지 못했습니다.
+                조건을 낮춰 억지로 비교 상권을 제시하지 않습니다.
+                </div></div>""", unsafe_allow_html=True
+            )
+            with st.expander("ⓘ TWIN 선정 기준 보기"):
+                st.write(
+                    "TWIN 후보는 동일 업종 상권 중 16개 구조 특성의 유사도가 85점 이상이고, "
+                    "FLOW SCORE가 선택 상권보다 높은 곳으로 제한합니다. 그 후보들 가운데 구조적으로 가장 유사한 상권을 선택합니다."
+                )
+                st.write("조건을 만족하는 상권이 없으면 '적합한 비교 상권 없음'으로 처리합니다.")
         else:
             similarity_text = f"{data['similarity']:.1f}" if pd.notna(data["similarity"]) else "—"
-            twin_conversion_text = f"{data['twin_conversion']:.1f}" if pd.notna(data["twin_conversion"]) else "—"
-            twin_diff_text = f"+{twin_diff:.1f}" if pd.notna(twin_diff) else "—"
-    
+            twin_score_text = f"{data['twin_conversion']:.1f}" if pd.notna(data["twin_conversion"]) else "—"
+            gain_text = f"+{data['twin_performance_gain']:.1f}점" if pd.notna(data["twin_performance_gain"]) else "—"
+
             st.markdown(
-                f"""
-                <div class="twin-box">
-                    <div class="label">왜 {data["twin"]}을 보여주나요?</div>
-                    <div style="font-size:25px;font-weight:850;color:#173c67;margin:8px 0;">
-                        우리와 구조가 비슷한 상권을 비교해 차이를 살펴봅니다.
-                    </div>
-                    <div class="subtext">
-                        유사도 지수 {similarity_text} · 실제 특성의 일치율이 아니라 구조적 비교를 위한 지수입니다.
-                    </div>
+                f"""<div class="twin-box">
+                <div class="label">왜 {data["twin"]}을 보여주나요?</div>
+                <div style="font-size:25px;font-weight:850;color:#173c67;margin:8px 0;">
+                구조는 비슷하지만, 같은 업종의 소비 연결 성과는 더 높은 상권입니다.
                 </div>
-                """, unsafe_allow_html=True
+                <div class="subtext">
+                구조 유사도 {similarity_text}점 · 16개 상권 특성을 종합한 비교용 지수
+                </div></div>""", unsafe_allow_html=True
             )
-    
+
             v1, vm, v2 = st.columns([1, .25, 1])
             with v1:
                 st.markdown(
-                    f"""<div class="card" style="min-height:175px;text-align:center;">
+                    f"""<div class="card" style="min-height:185px;text-align:center;">
                     <div class="label">우리 상권</div>
-                    <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{area}</div>
-                    <div style="font-size:15px;">시간대 진단</div>
-                    <div style="font-size:20px;font-weight:850;color:#173c67;margin-top:6px;">{"우선 점검: " + dead_time if has_dead_time else "뚜렷한 DEAD TIME 없음"}</div>
+                    <div style="font-size:21px;font-weight:850;color:#173c67;margin:9px 0;">{area}</div>
+                    <div style="font-size:14px;color:#607286;">FLOW SCORE</div>
+                    <div style="font-size:27px;font-weight:850;color:#173c67;margin-top:5px;">{data["flow_score"]:.1f}점</div>
                     </div>""", unsafe_allow_html=True
                 )
             with vm:
-                st.markdown("<div style='text-align:center;font-size:24px;font-weight:800;padding-top:70px;'>VS</div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center;font-size:24px;font-weight:800;padding-top:72px;'>VS</div>", unsafe_allow_html=True)
             with v2:
                 st.markdown(
-                    f"""<div class="card" style="min-height:175px;text-align:center;">
+                    f"""<div class="card" style="min-height:185px;text-align:center;">
                     <div class="label">비교 TWIN</div>
-                    <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
-                    <div style="font-size:15px;">같은 비교 기준</div>
-                    <div style="font-size:22px;font-weight:850;color:#245B91;margin-top:6px;">구조적으로 유사</div>
+                    <div style="font-size:21px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
+                    <div style="font-size:14px;color:#607286;">FLOW SCORE</div>
+                    <div style="font-size:27px;font-weight:850;color:#245B91;margin-top:5px;">{twin_score_text}점</div>
+                    <div style="font-size:13px;color:#607286;margin-top:4px;">우리 상권 대비 {gain_text}</div>
                     </div>""", unsafe_allow_html=True
                 )
-    
-            with st.expander("ⓘ 분석값으로 비교하기"):
-                if has_dead_time and dead_index is not None:
-                    st.write(
-                        f"현재 우리 상권의 우선 점검 시간은 {dead_time}입니다. "
-                        "TWIN 비교는 특정 시간대의 원시 매출값을 직접 빼는 방식이 아니라, 아래 16개 상권 구조 특성의 차이를 중심으로 해석합니다."
-                    )
-                else:
-                    st.write(
-                        "현재 우리 상권에는 FLOW 기준을 충족한 DEAD TIME이 없습니다. "
-                        "따라서 특정 시간대를 억지로 TWIN과 연결하지 않고, 아래 16개 상권 구조 특성의 차이를 중심으로 비교합니다."
-                    )
-    
+
+            st.caption("※ FLOW SCORE가 더 높다는 것은 같은 업종 내 소비 연결의 상대적 위치가 더 높다는 뜻이며, 실제 매출액이 더 크다는 의미는 아닙니다.")
+
             if data["why"]:
                 st.markdown("#### 두 상권에서 차이가 큰 특성 TOP 3")
-                st.caption("16개 비교 특성 중 두 상권의 차이가 상대적으로 크게 나타난 3개를 보여줍니다.")
+                st.caption("16개 구조 특성 중 두 상권의 차이가 상대적으로 크게 나타난 항목을 보여줍니다.")
                 why_cols = st.columns(len(data["why"]))
-                positive_features = []
                 for i, (feature, diff, unit) in enumerate(data["why"]):
-                    if diff > 0:
-                        positive_features.append((feature, diff, unit))
                     with why_cols[i]:
-                        # 연령대 유동 비중은 age_comparison.csv의 실제 비중값으로 표시
-                        age_label = None
-                        for _age in ["10대", "20대", "30대", "40대", "50대", "60대 이상"]:
-                            if _age in str(feature) and "유동" in str(feature):
-                                age_label = _age
-                                break
-    
-                        if age_label is not None:
-                            _age_row = age_df[
-                                (age_df["area_code"] == str(selected_code).strip()) &
-                                (age_df["category"] == str(category).strip()) &
-                                (age_df["age_group"] == age_label)
-                            ]
-    
-                            if not _age_row.empty:
-                                _ar = _age_row.iloc[0]
-                                _our_pct = float(_ar["area_share"]) * 100
-                                _twin_pct = float(_ar["twin_share"]) * 100
-                                _diff_pp = float(_ar["difference_pp"])
-                                _direction = "우리 상권이 높음" if _diff_pp > 0 else ("우리 상권이 낮음" if _diff_pp < 0 else "두 상권이 비슷함")
-                                _diff_text = f"{abs(_diff_pp):.1f}%p 차이"
-                                _detail = (
-                                    f"우리 상권 <b>{_our_pct:.1f}%</b> · "
-                                    f"비교 TWIN <b>{_twin_pct:.1f}%</b><br>"
-                                    f"<b>{_direction}</b> · {_diff_text}"
-                                )
-                            else:
-                                direction = "우리 상권이 낮음" if diff < 0 else "우리 상권이 높음"
-                                value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
-                                _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
+                        direction = "TWIN이 높음" if diff > 0 else ("우리 상권이 높음" if diff < 0 else "두 상권이 비슷함")
+                        if "유동 비중" in str(feature) and str(unit).strip() == "비율":
+                            value_text = f"{abs(float(diff))*100:.1f}%p 차이"
+                        elif str(unit).strip() == "비율":
+                            value_text = f"{abs(float(diff)):.2f} 차이"
                         else:
-                            direction = "우리 상권이 낮음" if diff < 0 else ("우리 상권이 높음" if diff > 0 else "두 상권이 비슷함")
-    
-                            # 시간대/주말 등 '유동 비중' 변수는 twin_difference.csv에서
-                            # 0~1 비율의 '차이'만 제공하므로 %p로 변환해 표시합니다.
-                            # (양쪽 절대 비중값은 이 파일에 없으므로 임의로 만들지 않습니다.)
-                            if "유동 비중" in str(feature) and str(unit).strip() == "비율":
-                                value = abs(float(diff)) * 100
-                                _detail = f"<b>{direction}</b><br><b>{value:.1f}%p</b> 차이"
-                            else:
-                                value = f"{abs(diff):.1f}" if abs(diff) < 100 else f"{abs(diff):,.0f}"
-                                _detail = f"<b>{direction}</b><br>{value}{unit} 차이"
-    
+                            val = abs(float(diff))
+                            value_text = f"{val:.1f}{unit} 차이" if val < 100 else f"{val:,.0f}{unit} 차이"
                         st.markdown(
                             f"""<div class="card" style="min-height:155px;">
                             <div class="label">비교 단서 {i+1}</div>
                             <div style="font-size:18px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
-                            <div style="font-size:14px;line-height:1.6;">{_detail}</div>
+                            <div style="font-size:14px;line-height:1.6;"><b>{direction}</b><br>{value_text}</div>
                             </div>""", unsafe_allow_html=True
                         )
-    
-                meaningful_positive = [(f, d, u) for f, d, u in positive_features if abs(d) >= 0.05]
-                if meaningful_positive:
-                    pf, pdiff, punit = meaningful_positive[0]
-                    st.success(
-                        f"**우리 상권이 이미 가진 특징:** 비교 TWIN과 비교하면 `{pf}`은 우리 상권이 더 높게 나타납니다. "
-                        "이는 매출 성과의 원인이라는 뜻이 아니라, 현재 상권이 가진 구조적 특징입니다."
-                    )
-    
-                st.caption("※ 위 차이는 소비성과 차이의 원인으로 확정한 결과가 아니라, 추가로 확인할 비교 단서입니다.")
-    
-            # 연령대별 유동인구 구성 비교
+                st.caption("※ 위 차이는 성과 차이의 원인으로 확정한 결과가 아니라, 점포 운영에서 추가로 확인할 비교 단서입니다.")
+
+            # age_comparison.csv가 새 TWIN과 일치할 때만 연령 상세표를 사용합니다.
             _age_match = age_df[
                 (age_df["area_code"] == str(selected_code).strip()) &
-                (age_df["category"] == str(category).strip())
+                (age_df["category"] == str(category).strip()) &
+                (age_df["twin_name"].astype(str).str.strip() == str(data["twin"]).strip())
             ].copy()
-    
+
             if not _age_match.empty:
                 age_order = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
-                _age_match["age_group"] = pd.Categorical(
-                    _age_match["age_group"], categories=age_order, ordered=True
-                )
+                _age_match["age_group"] = pd.Categorical(_age_match["age_group"], categories=age_order, ordered=True)
                 _age_match = _age_match.sort_values("age_group")
-    
                 with st.expander("연령대별 유동인구 구성 자세히 보기"):
                     st.caption(
-                        "우리 상권과 비교 TWIN을 방문하는 유동인구의 연령 구성을 비교합니다. "
+                        "우리 상권과 현재 비교 TWIN의 유동인구 연령 구성을 비교합니다. "
                         "특정 업종·시간대의 실제 구매 고객 연령을 의미하지 않습니다."
                     )
                     age_display = _age_match[["age_group", "area_share", "twin_share", "difference_pp"]].copy()
@@ -1204,22 +1174,13 @@ if st.session_state.show_result and st.session_state.selected_key:
                     age_display["비교 TWIN"] = (age_display["twin_share"] * 100).map(lambda x: f"{x:.1f}%")
                     age_display["차이"] = age_display["difference_pp"].map(lambda x: f"{x:+.1f}%p")
                     age_display = age_display.rename(columns={"age_group": "연령대"})
-                    st.dataframe(
-                        age_display[["연령대", "우리 상권", "비교 TWIN", "차이"]],
-                        hide_index=True,
-                        use_container_width=True
-                    )
-                    biggest = _age_match.loc[_age_match["difference_pp"].abs().idxmax()]
-                    direction_text = "높습니다" if biggest["difference_pp"] > 0 else "낮습니다"
-                    st.markdown(
-                        f"**가장 큰 연령 구성 차이** · {biggest['age_group']} 유동 비중이 "
-                        f"우리 상권에서 **{abs(biggest['difference_pp']):.1f}%p {direction_text}**."
-                    )
-    
-            with st.expander("ⓘ 비교 TWIN과 유사도는 어떻게 해석하나요?"):
+                    st.dataframe(age_display[["연령대", "우리 상권", "비교 TWIN", "차이"]],
+                                 hide_index=True, use_container_width=True)
+
+            with st.expander("ⓘ 비교 TWIN 선정 기준과 유사도 보기"):
                 st.write(
-                    "비교 TWIN은 아래 16개 특성을 함께 비교했을 때 우리 상권과 가장 비슷한 상권입니다. "
-                    "유사도는 두 상권의 특성이 완전히 같다는 뜻이 아니라, 이 특성들의 상대적 위치가 얼마나 비슷한지를 나타내는 지수입니다."
+                    "동일 업종 상권 중 구조 유사도 85점 이상이면서 FLOW SCORE가 우리 상권보다 높은 곳만 후보가 됩니다. "
+                    "그 후보들 가운데 16개 구조 특성이 가장 유사한 상권을 비교 TWIN으로 선택합니다."
                 )
                 st.markdown(
                     """
@@ -1235,10 +1196,9 @@ if st.session_state.show_result and st.session_state.selected_key:
                     """
                 )
                 st.caption(
-                    "※ 비교 TWIN은 '더 좋은 상권'을 뜻하지 않습니다. "
-                    "현재 상권과 조건이 비슷해 차이를 살펴보기 위한 비교 대상입니다."
+                    "※ 구조 유사도는 실제 특성의 일치율이 아니라 16개 특성의 업종 내 상대적 위치 차이를 종합한 비교용 지수입니다."
                 )
-    
+
         # 5. STORE DIAGNOSIS
     if page in ["가게 점검", "Action Point"]:
         if page == "Action Point":
