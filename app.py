@@ -857,7 +857,10 @@ if st.session_state.show_result and st.session_state.selected_key:
                 **{consumer_score_round}번째 정도**입니다.
 
                 **점수 읽는 법**  
-                0~39점은 **낮은 편**, 40~69점은 **보통 수준**, 70~100점은 **높은 편**으로 표시합니다.
+                · **0점부터 39점:** 낮은 편  
+                · **40점부터 69점:** 보통 수준  
+                · **70점부터 100점:** 높은 편  
+
                 이 구간은 결과를 쉽게 읽기 위해 FLOW 화면에서 사용하는 기준입니다.
 
                 **주의할 점**  
@@ -901,7 +904,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div class="card" style="min-height:145px;">
                 <div class="label">비교해볼 상권</div>
                 <div style="font-size:21px;font-weight:850;color:#173c67;margin-top:9px;">{quick_twin}</div>
-                <div class="subtext">구조가 비슷한 비교 기준</div>
+                <div class="subtext">유동인구·시간대·연령대·상주/직장인구·점포·상권 규모 등 16개 특성이 비슷한 곳</div>
                 </div>""", unsafe_allow_html=True
             )
 
@@ -1152,8 +1155,25 @@ if st.session_state.show_result and st.session_state.selected_key:
     
             with st.expander("ⓘ 비교 TWIN과 유사도는 어떻게 해석하나요?"):
                 st.write(
-                    "비교 TWIN은 현재 TWIN 선정 로직에서 구조적으로 유사하다고 선정된 비교 상권입니다. "
-                    "유사도는 실제 특성 일치율이 아니라 16개 상권특성에서 두 상권의 평균 백분위 차이를 이용한 구조적 유사도입니다."
+                    "비교 TWIN은 아래 16개 특성을 함께 비교했을 때 우리 상권과 가장 비슷한 상권입니다. "
+                    "유사도는 두 상권의 특성이 완전히 같다는 뜻이 아니라, 이 특성들의 상대적 위치가 얼마나 비슷한지를 나타내는 지수입니다."
+                )
+                st.markdown(
+                    """
+                    **비교에 사용한 16개 특성**
+
+                    - **유동 규모:** 총 유동인구
+                    - **연령 구성:** 20대 유동 비중, 30대 유동 비중
+                    - **시간대 구성:** 00~06, 06~11, 11~14, 14~17, 17~21, 21~24 유동 비중
+                    - **요일 구성:** 주말 유동 비중
+                    - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
+                    - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
+                    - **상권 규모:** 상권 면적
+                    """
+                )
+                st.caption(
+                    "※ 비교 TWIN은 '더 좋은 상권'을 뜻하지 않습니다. "
+                    "현재 상권과 조건이 비슷해 차이를 살펴보기 위한 비교 대상입니다."
                 )
     
         # 5. STORE DIAGNOSIS
