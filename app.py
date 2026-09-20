@@ -211,6 +211,56 @@ div.stButton > button {
     font-weight: 700;
     border: none;
 }
+
+/* ===== FLOW sidebar polish ===== */
+section[data-testid="stSidebar"] {
+    width: 310px !important;
+    min-width: 310px !important;
+    background: linear-gradient(180deg, #123f6d 0%, #174f82 100%);
+    border-right: none;
+}
+section[data-testid="stSidebar"] > div {
+    width: 310px !important;
+}
+section[data-testid="stSidebar"] .block-container {
+    padding: 34px 22px 28px 22px !important;
+}
+section[data-testid="stSidebar"] * {
+    color: rgba(255,255,255,0.94);
+}
+section[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,0.18);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] {
+    gap: 8px;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 3px;
+    transition: all 0.15s ease;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+    background: rgba(255,255,255,0.13);
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+    background: white;
+    border-color: white;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) p {
+    color: #174f82 !important;
+    font-weight: 800 !important;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] p {
+    font-size: 15px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+    color: rgba(255,255,255,0.68) !important;
+    font-size: 12px !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -242,13 +292,29 @@ if "selected_key" not in st.session_state:
 # -----------------------------
 # SIDEBAR NAVIGATION
 # -----------------------------
-st.sidebar.markdown("## FLOW")
-st.sidebar.caption("사람의 흐름을 소비의 흐름으로")
+st.sidebar.markdown(
+    """
+    <div style="padding:4px 2px 22px 2px;">
+        <div style="font-size:30px;font-weight:900;letter-spacing:-0.5px;color:white;">FLOW</div>
+        <div style="font-size:13px;font-weight:650;color:rgba(255,255,255,.76);margin-top:5px;">
+            사람의 흐름을 소비의 흐름으로
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 page = st.sidebar.radio(
     "메뉴",
-    ["상권 진단", "시간대 진단", "비교 TWIN", "가게 점검", "Action Point"],
+    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  가게 점검", "05  Action Point"],
     label_visibility="collapsed"
 )
+page = {
+    "01  상권 진단": "상권 진단",
+    "02  시간대 진단": "시간대 진단",
+    "03  비교 TWIN": "비교 TWIN",
+    "04  가게 점검": "가게 점검",
+    "05  Action Point": "Action Point",
+}.get(page, page)
 st.sidebar.markdown("---")
 if st.session_state.get("selected_key"):
     _nav_code, _nav_cat = st.session_state.selected_key
