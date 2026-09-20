@@ -233,39 +233,31 @@ st.caption("분석할 상권과 업종을 선택하세요.")
 
 # -----------------------------
 # 지역 탐색용 메타데이터
-# 분석 결과는 기존 area_summary를 그대로 사용하고,
-# 구/동 정보는 서울시 영역-상권 원본에서 area_code 기준으로만 붙입니다.
+# GitHub에 이미 올라가 있는 flow_area_map.csv를 사용합니다.
+# 이 파일의 실제 컬럼:
+# area_code, area_name, district, dong, lat, lon, area_size
 # -----------------------------
-REGION_FILE = _find_csv(
-    "서울시 상권분석서비스(영역-상권).csv",
-    "서울시 상권분석서비스(영역-상권)(1).csv",
-    "서울시 상권분석서비스(영역-상권)(2).csv"
-)
+MAP_FILE = _find_csv("flow_area_map.csv")
 
 @st.cache_data
 def load_region_data():
-    region = pd.read_csv(REGION_FILE, encoding="utf-8-sig")
-
-    # 서울시 원본 CSV 첫 행에 영문 필드명이 데이터처럼 들어있는 경우 제거
-    region["상권코드"] = region["상권코드"].astype(str).str.strip()
-    region = region[region["상권코드"].str.fullmatch(r"\d+")].copy()
+    region = pd.read_csv(MAP_FILE, encoding="utf-8-sig")
 
     region = region.rename(columns={
-        "상권코드": "area_code",
-        "상권코드명": "area",
-        "자치구코드명": "gu",
-        "행정동코드명": "dong",
+        "area_name": "area",
+        "district": "gu",
     })
 
-    for col in ["area_code", "area", "gu", "dong"]:
+    region["area_code"] = region["area_code"].astype(str).str.strip()
+    for col in ["area", "gu", "dong"]:
         region[col] = region[col].astype(str).str.strip()
 
     return region[["area_code", "area", "gu", "dong"]].drop_duplicates()
 
 region_df = load_region_data()
 
-# FLOW에서 실제 분석 가능한 상권만 탐색 목록에 남김
-available_codes = set(area_df["area_code"].astype(str))
+# area_summary.csv에서 실제 분석 가능한 상권만 남깁니다.
+available_codes = set(area_df["area_code"].astype(str).str.strip())
 region_flow = region_df[region_df["area_code"].isin(available_codes)].copy()
 
 st.markdown("#### 방법 1 · 구와 동으로 찾아보기")
@@ -357,7 +349,7 @@ if search_query:
 
 if selected_code is not None:
     selected_code = str(selected_code)
-    selected_area_rows = area_df[area_df["area_code"] == selected_code].copy()
+    selected_area_rows = area_df[area_df["area_code"].astype(str).str.strip() == selected_code].copy()
     selected_area_name = selected_area_rows["area"].iloc[0]
 
     category_options = sorted(
