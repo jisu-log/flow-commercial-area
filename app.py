@@ -796,6 +796,11 @@ if st.session_state.show_result and st.session_state.selected_key:
         hero_line = f"사람의 흐름은 {traffic_label}, 소비 연결은 {conversion_label}입니다."
         hero_sub = "같은 업종을 분석한 다른 상권들과 비교한 현재 위치입니다. 세부 차이는 다음 진단에서 확인할 수 있습니다."
 
+    # 시간대 우선순위 데이터는 여러 페이지에서 사용하므로 페이지 분기 전에 생성
+    eligible_rank = dead_candidates.copy()
+    eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
+    eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
+
     # 2. ONE-LINE DIAGNOSIS
     if page == "상권 진단":
         st.markdown(f'<div class="section-title">2. {area} · {category}는 어떤 상권일까요?</div>', unsafe_allow_html=True)
@@ -874,10 +879,6 @@ if st.session_state.show_result and st.session_state.selected_key:
         # -----------------------------
         # QUICK SUMMARY
         # -----------------------------
-        eligible_rank = dead_candidates.copy()
-        eligible_rank["gap"] = pd.to_numeric(eligible_rank["gap"], errors="coerce")
-        eligible_rank = eligible_rank.dropna(subset=["gap"]).sort_values("gap", ascending=False)
-
         quick_type = f"유동 {traffic_label} · 소비 연결 {conversion_label}"
         quick_twin = data["twin"] if data["twin"] else "비교 TWIN 없음"
 
@@ -957,6 +958,21 @@ if st.session_state.show_result and st.session_state.selected_key:
             fillcolor="rgba(255,177,85,0.14)", line_width=0, layer="below"
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown(
+            """
+            <div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:13px 16px;margin:4px 0 14px;">
+                <div style="font-weight:800;color:#173c67;margin-bottom:6px;">그래프는 이렇게 읽어요</div>
+                <div style="font-size:14px;line-height:1.65;color:#526579;">
+                    <b>소비가 일어날 여건</b>은 분석모형이 계산한 시간대별 <b>상대적 소비 기대수준</b>이고,
+                    <b>실제 소비 수준</b>은 데이터에서 관측된 해당 시간대의 소비 수준입니다.<br>
+                    두 막대의 차이가 클수록 <b>기대수준에 비해 실제 소비가 상대적으로 약한 시간</b>으로 봅니다.
+                    이 값은 원화 매출이나 미래 매출 예측값이 아닙니다.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     
         st.markdown(
             f"""
@@ -988,11 +1004,27 @@ if st.session_state.show_result and st.session_state.selected_key:
                 st.caption("다음으로 참고할 시간대: " + " · ".join(rest["time"].astype(str).head(2).tolist()))
             st.caption("※ 00~06 및 활동 관측 근거가 부족한 시간대는 DEAD TIME 우선순위에서 제외합니다.")
     
-        with st.expander("ⓘ 그래프는 어떻게 계산됐나요?"):
-            st.write(
-                f"분석 내부 지수에서는 {dead_time}의 상권 조건을 고려한 상대적 소비 기대수준이 "
-                f"{potential[dead_index]:.0f}, 실제 소비 수준이 {actual[dead_index]:.0f}로 계산되었습니다. "
-                f"차이는 {dead_gap:.0f}입니다. 이 값은 원화 매출이나 미래 매출 예측치가 아닙니다."
+        with st.expander("ⓘ 그래프는 무엇을 근거로 계산했나요?"):
+            st.markdown(
+                f"""
+                **1. 소비가 일어날 여건**  
+                `time_result.csv`에 저장된 **로그선형모형 기반 상대적 소비 기대수준(potential)**을 사용합니다.
+                결과 파일에서도 이를 *'로그선형모형 기반 상대적 소비 기대수준(정확한 미래 매출 예측값 아님)'*으로 정의하고 있습니다.
+
+                **2. 실제 소비 수준**  
+                같은 시간대에 데이터에서 관측된 **actual** 값을 사용합니다.
+
+                **3. 우선 점검 시간**  
+                분석 가능한 시간대에서 **potential - actual**, 즉 기대수준과 실제 소비의 차이(gap)가 큰 시간을 먼저 확인합니다.
+                활동 관측 근거가 부족한 시간대와 **00~06시**는 우선순위에서 제외합니다.
+
+                **현재 {dead_time}의 값**  
+                상대적 소비 기대수준 **{potential[dead_index]:.0f}** · 실제 소비 수준 **{actual[dead_index]:.0f}** · 차이 **{dead_gap:.0f}**
+
+                ※ 이 값은 원화 매출이나 미래 매출 예측값이 아닙니다.  
+                ※ 현재 전달된 결과 파일에는 로그선형모형에 투입된 **세부 설명변수 목록과 회귀식 자체가 포함되어 있지 않아**,
+                화면에서는 확인 가능한 계산 결과와 정의까지만 설명합니다.
+                """
             )
     
         # 4. TWIN
