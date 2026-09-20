@@ -29,6 +29,7 @@ def _find_csv(*names):
 AREA_FILE = _find_csv("area_summary.csv", "area_summary(1).csv")
 TIME_FILE = _find_csv("time_result.csv", "time_result(1).csv")
 TWIN_FILE = _find_csv("twin_difference.csv", "twin_difference(1).csv")
+AGE_FILE = _find_csv("age_comparison.csv")
 
 @st.cache_data
 def load_analysis_data():
@@ -54,6 +55,15 @@ def load_analysis_data():
     return area_df, time_df, twin_df
 
 area_df, time_df_all, twin_df_all = load_analysis_data()
+
+@st.cache_data
+def load_age_comparison():
+    df = pd.read_csv(AGE_FILE, encoding="utf-8-sig")
+    df["area_code"] = df["area_code"].astype(str).str.strip()
+    df["category"] = df["category"].astype(str).str.strip()
+    return df
+
+age_df = load_age_comparison()
 
 # -----------------------------
 # CSS
@@ -777,7 +787,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             <div class="twin-box">
                 <div class="label">왜 {data["twin"]}을 보여주나요?</div>
                 <div style="font-size:25px;font-weight:850;color:#173c67;margin:8px 0;">
-                    우리와 구조는 비슷하지만, 소비 연결은 더 활발하기 때문입니다.
+                    우리와 구조가 비슷한 상권을 비교해 차이를 살펴봅니다.
                 </div>
                 <div class="subtext">
                     유사도 지수 {similarity_text} · 실제 특성의 일치율이 아니라 구조적 비교를 위한 지수입니다.
@@ -804,7 +814,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 <div class="label">비교 TWIN</div>
                 <div style="font-size:22px;font-weight:850;color:#173c67;margin:9px 0;">{data["twin"]}</div>
                 <div style="font-size:15px;">같은 비교 기준</div>
-                <div style="font-size:22px;font-weight:850;color:#245B91;margin-top:6px;">소비 연결 더 활발</div>
+                <div style="font-size:22px;font-weight:850;color:#245B91;margin-top:6px;">구조적으로 유사</div>
                 </div>""", unsafe_allow_html=True
             )
 
@@ -843,9 +853,44 @@ if st.session_state.show_result and st.session_state.selected_key:
 
             st.caption("※ 위 차이는 소비성과 차이의 원인으로 확정한 결과가 아니라, 추가로 확인할 비교 단서입니다.")
 
+        # 연령대별 유동인구 구성 비교
+        _age_match = age_df[
+            (age_df["area_code"] == str(selected_code).strip()) &
+            (age_df["category"] == str(category).strip())
+        ].copy()
+
+        if not _age_match.empty:
+            age_order = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
+            _age_match["age_group"] = pd.Categorical(
+                _age_match["age_group"], categories=age_order, ordered=True
+            )
+            _age_match = _age_match.sort_values("age_group")
+
+            with st.expander("연령대별 유동인구 구성 비교"):
+                st.caption(
+                    "우리 상권과 비교 TWIN을 방문하는 유동인구의 연령 구성을 비교합니다. "
+                    "특정 업종·시간대의 실제 구매 고객 연령을 의미하지 않습니다."
+                )
+                age_display = _age_match[["age_group", "area_share", "twin_share", "difference_pp"]].copy()
+                age_display["우리 상권"] = (age_display["area_share"] * 100).map(lambda x: f"{x:.1f}%")
+                age_display["비교 TWIN"] = (age_display["twin_share"] * 100).map(lambda x: f"{x:.1f}%")
+                age_display["차이"] = age_display["difference_pp"].map(lambda x: f"{x:+.1f}%p")
+                age_display = age_display.rename(columns={"age_group": "연령대"})
+                st.dataframe(
+                    age_display[["연령대", "우리 상권", "비교 TWIN", "차이"]],
+                    hide_index=True,
+                    use_container_width=True
+                )
+                biggest = _age_match.loc[_age_match["difference_pp"].abs().idxmax()]
+                direction_text = "높습니다" if biggest["difference_pp"] > 0 else "낮습니다"
+                st.markdown(
+                    f"**가장 큰 연령 구성 차이** · {biggest['age_group']} 유동 비중이 "
+                    f"우리 상권에서 **{abs(biggest['difference_pp']):.1f}%p {direction_text}**."
+                )
+
         with st.expander("ⓘ 비교 TWIN과 유사도는 어떻게 해석하나요?"):
             st.write(
-                "비교 TWIN은 구조가 유사한 후보 중 소비 연결 성과가 더 높은 비교 상권입니다. "
+                "비교 TWIN은 현재 TWIN 선정 로직에서 구조적으로 유사하다고 선정된 비교 상권입니다. "
                 "유사도는 실제 특성 일치율이 아니라 16개 상권특성에서 두 상권의 평균 백분위 차이를 이용한 구조적 유사도입니다."
             )
 
