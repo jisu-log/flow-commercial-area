@@ -441,6 +441,12 @@ if page == "상권 진단":
         region["area_code"] = region["area_code"].astype(str).str.strip()
         for col in ["area", "gu", "dong"]:
             region[col] = region[col].astype(str).str.strip()
+
+        # flow_area_map.csv 원본에서 손상된 행정동명 표시 교정
+        # 분석값에는 영향을 주지 않고 지역 탐색/검색 화면의 명칭만 수정합니다.
+        region["dong"] = region["dong"].replace({
+            "종로1?2?3?4가동": "종로1·2·3·4가동"
+        })
     
         return region[["area_code", "area", "gu", "dong"]].drop_duplicates()
     
@@ -989,6 +995,37 @@ if st.session_state.show_result and st.session_state.selected_key:
                 공백이 큰 시간으로 남았습니다.
                 </div></div>""", unsafe_allow_html=True
             )
+
+            # 최종 DEAD TIME 후보의 선정 근거를 바로 표시
+            reason_rows = chart_rows[
+                chart_rows["time"].astype(str).isin(unique_dead_times)
+            ].copy()
+            if not reason_rows.empty:
+                reason_bits = []
+                for _, rr in reason_rows.iterrows():
+                    t = str(rr["time"]).replace("~", "–")
+                    within = pd.to_numeric(rr.get("within_area_gap_percentile", np.nan), errors="coerce")
+                    peer = pd.to_numeric(rr.get("peer_gap_percentile", np.nan), errors="coerce")
+                    repeat = pd.to_numeric(rr.get("repeat_dead", np.nan), errors="coerce")
+                    parts = []
+                    if pd.notna(within):
+                        parts.append(f"상권 내부 {within*100:.0f}%")
+                    if pd.notna(peer):
+                        parts.append(f"동종업종 비교 {peer*100:.0f}%")
+                    if pd.notna(repeat):
+                        parts.append(f"{int(repeat)}개 분기 반복")
+                    reason_bits.append(f"<b>{t}</b> · " + " · ".join(parts))
+
+                st.markdown(
+                    """<div style="background:#fffdf8;border:1px solid #ecd7b2;border-radius:10px;
+                                padding:11px 15px;margin:-2px 0 12px;font-size:14px;line-height:1.75;color:#66543a;">
+                    <b style="color:#8a5a13;">왜 DEAD TIME으로 선택됐나요?</b><br>"""
+                    + "<br>".join(reason_bits) +
+                    """<div style="margin-top:5px;color:#7a6c58;">
+                    막대의 절대 차이가 가장 큰 시간이 아니라, 반복성과 상권 내부·동일 업종 비교 기준을 함께 통과한 시간입니다.
+                    </div></div>""",
+                    unsafe_allow_html=True
+                )
         else:
             st.markdown(
                 """<div class="action-box" style="border-left-color:#245B91;background:#f5f9fd;">
