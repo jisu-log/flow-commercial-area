@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import re
 
 st.set_page_config(
     page_title="FLOW",
@@ -15,6 +16,17 @@ st.set_page_config(
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# 화면 표시용 가운데점(·) 복원
+# 일부 CSV/환경에서 행정동명의 가운데점이 ?로 읽히는 경우만 안전하게 교정합니다.
+# 예: 상계3?4동 -> 상계3·4동, 종로1?2?3?4가동 -> 종로1·2·3·4가동
+MIDDOT = "\u00B7"
+
+def repair_middle_dot(value):
+    if value is None or pd.isna(value):
+        return value
+    text = str(value)
+    return re.sub(r"(?<=\d)\?(?=\d)", MIDDOT, text)
 
 def _find_csv(*names):
     """GitHub/Streamlit Cloud와 로컬에서 파일명을 유연하게 찾습니다."""
@@ -539,11 +551,9 @@ if page == "상권 진단":
         for col in ["area", "gu", "dong"]:
             region[col] = region[col].astype(str).str.strip()
 
-        # flow_area_map.csv 원본에서 손상된 행정동명 표시 교정
-        # 분석값에는 영향을 주지 않고 지역 탐색/검색 화면의 명칭만 수정합니다.
-        region["dong"] = region["dong"].replace({
-            "종로1?2?3?4가동": "종로1·2·3·4가동"
-        })
+        # flow_area_map.csv에서 가운데점(·)이 ?로 손상된 행정동명을 화면 표시용으로 복원합니다.
+        # 숫자와 숫자 사이의 ?만 가운데점으로 바꾸므로 분석값/일반 문장에는 영향을 주지 않습니다.
+        region["dong"] = region["dong"].map(repair_middle_dot)
     
         return region[["area_code", "area", "gu", "dong"]].drop_duplicates()
     
