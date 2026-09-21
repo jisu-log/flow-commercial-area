@@ -470,7 +470,7 @@ st.sidebar.markdown(
 )
 page = st.sidebar.radio(
     "메뉴",
-    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  내 가게 점검"],
+    ["01  상권 진단", "02  시간대 진단", "03  비교 TWIN", "04  내 가게 점검", "05  FLOW 소개"],
     label_visibility="collapsed"
 )
 page = {
@@ -478,6 +478,7 @@ page = {
     "02  시간대 진단": "시간대 진단",
     "03  비교 TWIN": "비교 TWIN",
     "04  내 가게 점검": "내 가게 점검",
+    "05  FLOW 소개": "FLOW 소개",
 }.get(page, page)
 st.sidebar.markdown("---")
 if st.session_state.get("selected_key"):
@@ -1660,3 +1661,127 @@ if st.session_state.show_result and st.session_state.selected_key:
             "현재 버전은 DEMO 데이터 기반 프로토타입입니다. 분석지수는 상권 간 상대 비교를 위한 값이며 "
             "개별 점포의 미래 매출이나 특정 요인의 인과효과를 예측하지 않습니다."
         )
+
+
+# -----------------------------
+# ABOUT FLOW / METHODOLOGY
+# -----------------------------
+if page == "FLOW 소개":
+    st.markdown('<div class="page-kicker">ABOUT FLOW</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">FLOW는 어떻게 만들어졌나요?</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-context">결과를 만드는 데이터, 가공 과정, 핵심 판정 기준을 한 페이지에서 확인할 수 있습니다.</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        """<div class="result-strip">
+        <div class="title">사람의 흐름을 소비의 흐름으로</div>
+        <div style="font-size:14px;line-height:1.7;color:#526579;">
+        FLOW는 <b>유동이 존재하지만 소비 연결이 상대적으로 약한 시간</b>을 찾고,
+        구조가 비슷하면서 더 높은 소비 연결 성과를 보이는 상권과 비교해
+        점포에서 무엇을 먼저 확인할지 좁혀주는 상권 진단 프로토타입입니다.
+        </div></div>""",
+        unsafe_allow_html=True
+    )
+
+    st.markdown("### 프로젝트 정보")
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        st.markdown("**제작**")
+        st.write("건국대학교 응용통계학과 · FLOW 프로젝트")
+    with p2:
+        st.markdown("**분석·가공**")
+        st.write("R · Python")
+    with p3:
+        st.markdown("**서비스 구현**")
+        st.write("Streamlit · Plotly")
+
+    st.markdown("### 데이터 구성")
+    st.write(
+        "상권·업종·시간대를 공통 분석 단위로 맞춘 뒤 유동, 소비 연결, 점포, 상주·직장인구, "
+        "시간대·연령 구성 등의 변수를 결합해 분석합니다. 앱은 아래의 최종 가공 파일을 사용합니다."
+    )
+    st.markdown(
+        """
+        - `area_summary_category_adjusted.csv` · 상권×업종 단위 최종 진단 및 TWIN 결과
+        - `time_result_category_adjusted.csv` · 상권×업종×시간대 DEAD TIME 판정 결과
+        - `twin_difference.csv` · TWIN 구조 차이 TOP 3
+        - `age_comparison (1).csv` · 최종 TWIN과의 연령대별 유동인구 구성 비교
+        - `flow_area_map.csv` · 상권명·자치구·행정동 등 탐색용 메타데이터
+        """
+    )
+    st.caption("※ 연령대 비중은 실제 구매 고객 연령이 아니라 해당 상권의 유동인구 연령 구성입니다.")
+
+    st.markdown("### 분석 흐름")
+    st.markdown(
+        """
+        **① 정제·결합**  →  상권·업종·시간대 기준 통일 및 분석 가능 구간 선별  
+        **② 상대화**  →  업종 내 백분위 등 상대적 위치로 상권 간 규모 차이 보정  
+        **③ DEAD TIME 보정**  →  반복성 + 상권 내부 순위 + 동일 업종·동일 시간대 비교  
+        **④ TWIN 탐색**  →  16개 구조 특성이 유사하면서 FLOW SCORE가 더 높은 동일 업종 상권 탐색  
+        **⑤ 점포 점검**  →  상권 결과와 사용자 응답을 결합해 우선 확인 항목 제시
+        """
+    )
+
+    st.markdown("### 핵심 판정 기준")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### DEAD TIME")
+        st.write("단순히 기대수준과 실제값의 차이가 가장 큰 시간을 선택하지 않습니다.")
+        st.markdown(
+            """
+            **최종 후보 조건**
+            - 기존 반복 소비공백 후보
+            - 상권 내부 Gap 백분위 **상위 25%**
+            - 동일 업종·동일 시간대 Gap 백분위 **상위 10%**
+            - 업종·시간대 기준 대비 상대 Gap **> 0**
+            """
+        )
+        st.latex(r"Relative\ Gap = Gap_{area,time} - Median(Gap_{same\ category,time})")
+        st.caption("업종 자체가 원래 약한 시간대는 ‘업종 공통 저활성 시간대’로 별도 구분합니다.")
+
+    with c2:
+        st.markdown("#### 비교 TWIN")
+        st.write("동일 업종 중 구조적으로 충분히 비슷하고, FLOW SCORE가 더 높은 상권만 후보로 사용합니다.")
+        st.markdown(
+            """
+            **후보 조건**
+            - 동일 업종
+            - 구조 유사도 **85점 이상**
+            - 선택 상권보다 **FLOW SCORE가 높음**
+            - 조건을 만족하는 후보 중 가장 유사한 상권 선택
+            """
+        )
+        st.latex(r"Similarity = 100 - \frac{1}{16}\sum_{j=1}^{16}|P_{target,j}-P_{candidate,j}|\times100")
+        st.caption("P는 각 구조 특성의 동일 업종 내 백분위 위치입니다. 85점은 실제 특성이 85% 일치한다는 뜻이 아닙니다.")
+
+    with st.expander("TWIN 비교에 사용한 16개 구조 특성"):
+        st.markdown(
+            """
+            - **유동 규모:** 총 유동인구
+            - **연령 구성:** 20대 유동 비중, 30대 유동 비중
+            - **시간대 구성:** 00–06, 06–11, 11–14, 14–17, 17–21, 21–24 유동 비중
+            - **요일 구성:** 주말 유동 비중
+            - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
+            - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
+            - **상권 규모:** 상권 면적
+            """
+        )
+        st.info("연령대 상세 비교표는 최종 TWIN을 설명하기 위한 보조 정보입니다. 20대·30대 외 연령대는 TWIN 선정 및 similarity 계산에 추가로 사용하지 않습니다.")
+
+    st.markdown("### FLOW SCORE는 어떻게 읽나요?")
+    st.write(
+        "FLOW SCORE는 같은 업종 안에서 상권의 소비 연결 성과를 상대적으로 비교하기 위한 점수입니다. "
+        "앱에서는 실제 매출액이나 미래 매출 예측값으로 해석하지 않으며, TWIN 역시 이 점수가 더 높은 상권만 비교 대상으로 사용합니다."
+    )
+    st.caption("※ 현재 앱 연결 파일에는 FLOW SCORE의 최종 값이 포함되어 있으며, 이 페이지에서는 확인되지 않은 세부 산식을 임의로 재구성하지 않습니다.")
+
+    st.markdown("### 해석 시 주의사항")
+    st.markdown(
+        """
+        FLOW는 **원인 규명 모델이나 미래 매출 예측 모델이 아닙니다.** 데이터에서 반복적으로 나타나는 상대적 소비공백을 발견하고,
+        유사 상권과의 비교를 통해 점검 우선순위를 좁히는 진단 도구입니다. TWIN의 TOP 3 차이 역시 높은 FLOW SCORE의 원인으로
+        확정한 변수가 아니라 두 상권을 이해하기 위한 **비교 단서**입니다.
+        """
+    )
