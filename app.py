@@ -1689,29 +1689,46 @@ if page == "FLOW 소개":
     p1, p2, p3 = st.columns(3)
     with p1:
         st.markdown("**제작**")
-        st.write("건국대학교 응용통계학과 · FLOW 프로젝트")
+        st.write("건국대학교 응용통계학과 · 강다연 · 최지윤 · 한지수")
     with p2:
         st.markdown("**분석·가공**")
-        st.write("R · Python")
+        st.write("R · Python · Excel")
     with p3:
         st.markdown("**서비스 구현**")
         st.write("Streamlit · Plotly")
 
     st.markdown("### 데이터 구성")
     st.write(
-        "상권·업종·시간대를 공통 분석 단위로 맞춘 뒤 유동, 소비 연결, 점포, 상주·직장인구, "
-        "시간대·연령 구성 등의 변수를 결합해 분석합니다. 앱은 아래의 최종 가공 파일을 사용합니다."
+        "유동인구·소비/매출·점포·상주/직장인구 등 원천 데이터를 결합하고, "
+        "상권 × 업종 × 시간대를 공통 분석 단위로 맞춰 FLOW 분석용 데이터로 가공했습니다."
     )
-    st.markdown(
-        """
-        - `area_summary_category_adjusted.csv` · 상권×업종 단위 최종 진단 및 TWIN 결과
-        - `time_result_category_adjusted.csv` · 상권×업종×시간대 DEAD TIME 판정 결과
-        - `twin_difference.csv` · TWIN 구조 차이 TOP 3
-        - `age_comparison (1).csv` · 최종 TWIN과의 연령대별 유동인구 구성 비교
-        - `flow_area_map.csv` · 상권명·자치구·행정동 등 탐색용 메타데이터
-        """
-    )
+
+    d1, d2, d3, d4 = st.columns(4)
+    with d1:
+        st.markdown("**유동인구**")
+        st.caption("시간대·연령대별 유동 규모와 구성")
+    with d2:
+        st.markdown("**소비·매출**")
+        st.caption("업종·시간대별 소비 연결 수준")
+    with d3:
+        st.markdown("**점포**")
+        st.caption("동일 업종 및 프랜차이즈 점포 구성")
+    with d4:
+        st.markdown("**상권 구조**")
+        st.caption("상주·직장인구, 상권 면적 등")
+
     st.caption("※ 연령대 비중은 실제 구매 고객 연령이 아니라 해당 상권의 유동인구 연령 구성입니다.")
+
+    with st.expander("분석에 연결된 최종 가공 파일 보기"):
+        st.markdown(
+            """
+            - `area_summary_category_adjusted.csv` · 상권×업종 단위 최종 진단 및 TWIN 결과
+            - `time_result_category_adjusted.csv` · 상권×업종×시간대 DEAD TIME 판정 결과
+            - `twin_difference.csv` · TWIN 구조 차이 TOP 3
+            - `age_comparison (1).csv` · 최종 TWIN과의 연령대별 유동인구 구성 비교
+            - `flow_area_map.csv` · 상권명·자치구·행정동 등 탐색용 메타데이터
+            """
+        )
 
     st.markdown("### 분석 흐름")
     st.markdown(
@@ -1775,7 +1792,6 @@ if page == "FLOW 소개":
         "FLOW SCORE는 같은 업종 안에서 상권의 소비 연결 성과를 상대적으로 비교하기 위한 점수입니다. "
         "앱에서는 실제 매출액이나 미래 매출 예측값으로 해석하지 않으며, TWIN 역시 이 점수가 더 높은 상권만 비교 대상으로 사용합니다."
     )
-    st.caption("※ 현재 앱 연결 파일에는 FLOW SCORE의 최종 값이 포함되어 있으며, 이 페이지에서는 확인되지 않은 세부 산식을 임의로 재구성하지 않습니다.")
 
     st.markdown("### 해석 시 주의사항")
     st.markdown(
