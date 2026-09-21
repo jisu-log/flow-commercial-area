@@ -39,6 +39,16 @@ def display_time(value):
 def display_time_join(values):
     return " · ".join(display_time(v) for v in values)
 
+def display_feature_label(value):
+    """TWIN 특성명 안의 시간대에도 화면 표시용 '시'를 붙입니다."""
+    text = str(value).strip()
+    for raw in ["00~06", "06~11", "11~14", "14~17", "17~21", "21~24",
+                "00–06", "06–11", "11–14", "14–17", "17–21", "21–24"]:
+        normalized = raw.replace("~", "–")
+        if raw in text and f"{normalized}시" not in text:
+            text = text.replace(raw, f"{normalized}시")
+    return text
+
 AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
 TIME_FILE = _find_csv("time_result_category_adjusted.csv")
 TWIN_FILE = _find_csv("twin_difference.csv")
@@ -1343,6 +1353,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 why_cols = st.columns(len(data["why"]))
                 for i, (feature, diff, unit) in enumerate(data["why"]):
                     with why_cols[i]:
+                        feature_display = display_feature_label(feature)
                         direction = "TWIN이 높음" if diff > 0 else ("우리 상권이 높음" if diff < 0 else "두 상권이 비슷함")
                         if "유동 비중" in str(feature) and str(unit).strip() == "비율":
                             value_text = f"{abs(float(diff))*100:.1f}%p 차이"
@@ -1354,7 +1365,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                         st.markdown(
                             f"""<div class="card" style="min-height:155px;">
                             <div class="label">비교 단서 {i+1}</div>
-                            <div style="font-size:18px;font-weight:800;color:#183f6c;margin:7px 0;">{feature}</div>
+                            <div style="font-size:18px;font-weight:800;color:#183f6c;margin:7px 0;">{feature_display}</div>
                             <div style="font-size:14px;line-height:1.6;"><b>{direction}</b><br>{value_text}</div>
                             </div>""", unsafe_allow_html=True
                         )
