@@ -26,6 +26,19 @@ def _find_csv(*names):
         f"필요한 CSV 파일을 찾지 못했습니다: {', '.join(names)}"
     )
 
+
+def display_time(value):
+    """원본 시간대 키는 유지하고 화면 표시에서만 '시'를 붙입니다."""
+    if value is None or pd.isna(value):
+        return value
+    text = str(value).strip().replace("–", "~")
+    if "~" in text and not text.endswith("시"):
+        return text.replace("~", "–") + "시"
+    return text
+
+def display_time_join(values):
+    return " · ".join(display_time(v) for v in values)
+
 AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
 TIME_FILE = _find_csv("time_result_category_adjusted.csv")
 TWIN_FILE = _find_csv("twin_difference.csv")
@@ -799,6 +812,7 @@ if st.session_state.show_result and st.session_state.selected_key:
     representative_dead_time = "" if pd.isna(dead_time_raw) else str(dead_time_raw).strip()
     has_dead_time = len(unique_dead_times) > 0
     dead_time = " · ".join(unique_dead_times) if has_dead_time else "뚜렷한 DEAD TIME 없음"
+    dead_time_display = display_time_join(unique_dead_times) if has_dead_time else "뚜렷한 DEAD TIME 없음"
 
     # 데이터팀의 최종 TWIN 판정을 그대로 사용합니다.
     # "없음"이면 twin_name에 어떤 값이 남아 있어도 절대 TWIN을 표시하지 않습니다.
@@ -1037,7 +1051,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
         with q2:
             if has_dead_time:
-                q2_value, q2_sub, q2_color = dead_time, "FLOW 기준을 충족한 우선 점검 시간", "#a55c00"
+                q2_value, q2_sub, q2_color = dead_time_display, "FLOW 기준을 충족한 우선 점검 시간", "#a55c00"
             else:
                 q2_value, q2_sub, q2_color = "뚜렷한 시간 없음", "현재 FLOW 기준을 충족한 시간대가 없어요", "#173c67"
             st.markdown(
@@ -1067,7 +1081,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             st.markdown(
                 f"""<div class="action-box">
                 <div class="label">상권 고유 DEAD TIME 후보</div>
-                <div style="font-size:34px;font-weight:850;color:#a55c00;margin:5px 0 7px;">{dead_time}</div>
+                <div style="font-size:34px;font-weight:850;color:#a55c00;margin:5px 0 7px;">{dead_time_display}</div>
                 <div style="font-size:16px;font-weight:700;color:#18324a;line-height:1.65;">
                 우리 상권 안에서도 소비 연결이 약하고, 같은 업종·같은 시간대의 다른 상권과 비교해도
                 공백이 큰 시간으로 남았습니다.
@@ -1081,7 +1095,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             if not reason_rows.empty:
                 reason_bits = []
                 for _, rr in reason_rows.iterrows():
-                    t = str(rr["time"]).replace("~", "–")
+                    t = display_time(rr["time"])
                     within = pd.to_numeric(rr.get("within_area_gap_percentile", np.nan), errors="coerce")
                     peer = pd.to_numeric(rr.get("peer_gap_percentile", np.nan), errors="coerce")
                     repeat = pd.to_numeric(rr.get("repeat_dead", np.nan), errors="coerce")
@@ -1119,7 +1133,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
 
         if common_low_times:
-            common_text = ", ".join(t.replace("~", "–") for t in common_low_times)
+            common_text = ", ".join(display_time(t) for t in common_low_times)
             st.markdown(
                 f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
                 <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
@@ -1131,7 +1145,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
 
         time_df = pd.DataFrame({
-            "시간대": data["times"],
+            "시간대": [display_time(t) for t in data["times"]],
             "상권 특성 기반 기대수준": data["potential"],
             "실제 매출건수": data["actual"]
         })
@@ -1204,7 +1218,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
 
         if common_low_times and not has_dead_time:
-            common_case = ", ".join(t.replace("~", "–") for t in common_low_times)
+            common_case = ", ".join(display_time(t) for t in common_low_times)
             st.markdown(
                 f"""<div style="margin:-2px 0 14px;padding:10px 14px;border-left:4px solid #d49a3a;background:#fffaf1;
                             font-size:14px;line-height:1.65;color:#5f5749;">
@@ -1231,7 +1245,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             available_cols = [c for c in detail_cols if c in chart_rows.columns]
             detail = chart_rows[available_cols].copy()
             if "time" in detail.columns:
-                detail["time"] = detail["time"].astype(str).str.replace("~", "–", regex=False)
+                detail["time"] = detail["time"].map(display_time)
                 detail = detail.rename(columns={"time": "시간대"})
             if "dead_time_class" in detail.columns:
                 detail = detail.rename(columns={"dead_time_class": "분류"})
@@ -1384,7 +1398,7 @@ if st.session_state.show_result and st.session_state.selected_key:
 
                     - **유동 규모:** 총 유동인구
                     - **연령 구성:** 20대 유동 비중, 30대 유동 비중
-                    - **시간대 구성:** 00–06, 06–11, 11–14, 14–17, 17–21, 21–24 유동 비중
+                    - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
                     - **요일 구성:** 주말 유동 비중
                     - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
                     - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
@@ -1415,6 +1429,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             store_weak = st.selectbox(
                 "① 평소 주문이나 매출이 가장 약한 시간대는 언제인가요?",
                 ["선택해주세요"] + list(data["times"]),
+                format_func=lambda x: x if x == "선택해주세요" else display_time(x),
                 key="store_weak_time"
             )
     
@@ -1437,13 +1452,14 @@ if st.session_state.show_result and st.session_state.selected_key:
             )
     
             if store_weak != "선택해주세요":
+                store_weak_display = display_time(store_weak)
                 same_time = store_weak in unique_dead_times
     
                 if same_time:
                     result_title = "상권과 내 가게가 같은 시간대에서 약합니다."
                     result_desc = (
-                        f"상권에서도 {store_weak}이 상권 고유 DEAD TIME 후보로 나타났고, "
-                        f"사장님이 입력한 가게의 취약시간도 {store_weak}입니다. "
+                        f"상권에서도 {store_weak_display}이 상권 고유 DEAD TIME 후보로 나타났고, "
+                        f"사장님이 입력한 가게의 취약시간도 {store_weak_display}입니다. "
                         "점포만의 문제로 단정하기보다 상권 패턴과 점포 운영을 함께 비교해볼 필요가 있습니다."
                     )
                     badge = "상권 패턴 가능성도 함께 확인"
@@ -1451,14 +1467,14 @@ if st.session_state.show_result and st.session_state.selected_key:
                     result_title = "내 가게의 개별 패턴을 먼저 확인해보세요."
                     if has_dead_time:
                         result_desc = (
-                            f"상권에서는 {dead_time}이 상권 고유 DEAD TIME 후보지만, "
-                            f"사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
+                            f"상권에서는 {dead_time_display}이 상권 고유 DEAD TIME 후보지만, "
+                            f"사장님 가게는 {store_weak_display}이 가장 약하다고 응답했습니다. "
                             "상권과 다른 패턴이므로 먼저 점포 내부의 운영·입점·구매 과정을 비교해보는 편이 타당합니다."
                         )
                     else:
                         result_desc = (
                             f"상권에서는 뚜렷한 고유 DEAD TIME이 확인되지 않았지만, "
-                            f"사장님 가게는 {store_weak}이 가장 약하다고 응답했습니다. "
+                            f"사장님 가게는 {store_weak_display}이 가장 약하다고 응답했습니다. "
                             "점포 기록을 통해 이 시간대의 운영·입점·구매 과정을 먼저 확인해보세요."
                         )
                     badge = "점포 개별 패턴 우선 점검"
@@ -1476,29 +1492,29 @@ if st.session_state.show_result and st.session_state.selected_key:
     
                 # Priority 1: stage-based check
                 if store_stage == "사람은 지나가지만 가게로 잘 들어오지 않아요":
-                    p1_title = f"{store_weak} 입점률을 비교해보세요"
+                    p1_title = f"{store_weak_display} 입점률을 비교해보세요"
                     p1_text = (
-                        f"{store_weak}의 '매장 앞 통행 인원 대비 실제 입점 인원'을 기록하고, "
+                        f"{store_weak_display}의 '매장 앞 통행 인원 대비 실제 입점 인원'을 기록하고, "
                         "평소 잘되는 시간대의 입점률과 비교해보세요. 취약시간에만 입점률이 크게 낮다면 "
                         "상권 전체보다 점포 앞 접점에서 문제가 생기는지 확인할 단서가 됩니다."
                     )
                     p1_how = "직접 기록: 매장 앞 통행 인원 ÷ 실제 입점 인원"
                 elif store_stage == "손님은 들어오지만 주문·구매가 기대보다 적어요":
-                    p1_title = f"{store_weak} 구매전환을 비교해보세요"
+                    p1_title = f"{store_weak_display} 구매전환을 비교해보세요"
                     p1_text = (
-                        f"{store_weak}의 방문자 수와 실제 주문건수를 기록하고 평소 잘되는 시간대와 비교해보세요. "
+                        f"{store_weak_display}의 방문자 수와 실제 주문건수를 기록하고 평소 잘되는 시간대와 비교해보세요. "
                         "방문은 비슷한데 주문 비율만 낮다면 방문 이후 주문 단계에서 문제가 생기는지 살펴볼 수 있습니다."
                     )
                     p1_how = "직접 기록: 방문자 수 · 주문건수 · 가능하면 객단가"
                 elif store_stage == "주변에 사람 자체가 적어요":
-                    p1_title = f"{store_weak} 매장 앞 유동을 비교해보세요"
+                    p1_title = f"{store_weak_display} 매장 앞 유동을 비교해보세요"
                     p1_text = (
-                        f"상권 전체 유동과 실제 매장 앞 유동은 다를 수 있습니다. {store_weak}의 매장 앞 통행 인원을 "
+                        f"상권 전체 유동과 실제 매장 앞 유동은 다를 수 있습니다. {store_weak_display}의 매장 앞 통행 인원을 "
                         "평소 잘되는 시간대와 같은 방식으로 세어 비교해보세요."
                     )
                     p1_how = "직접 기록: 동일 시간 간격의 매장 앞 통행 인원"
                 else:
-                    p1_title = f"{store_weak} 기본 흐름부터 기록해보세요"
+                    p1_title = f"{store_weak_display} 기본 흐름부터 기록해보세요"
                     p1_text = (
                         "현재 응답만으로 어느 단계에서 막히는지 특정하기 어렵습니다. "
                         "통행 → 입점 → 주문의 세 단계를 같은 시간대에 기록하면 다음 점검 대상을 좁힐 수 있습니다."
@@ -1544,24 +1560,24 @@ if st.session_state.show_result and st.session_state.selected_key:
     
                 # Priority 3: relation to area pattern
                 if same_time:
-                    p3_title = f"{store_weak}을 비교상권과 함께 보세요"
+                    p3_title = f"{store_weak_display}을 비교상권과 함께 보세요"
                     p3_text = (
-                        f"내 가게의 취약시간인 {store_weak}이 상권 고유 DEAD TIME 후보에도 포함됩니다. "
+                        f"내 가게의 취약시간인 {store_weak_display}이 상권 고유 DEAD TIME 후보에도 포함됩니다. "
                         "FLOW의 상권 시간대 결과와 비교 TWIN을 함께 참고하고, 점포 기록을 확보한 뒤 차이를 비교해보세요."
                     )
                     p3_how = "FLOW 보유: 상권 시간대 결과 · 비교 TWIN 비교"
                 elif has_dead_time:
-                    p3_title = f"상권의 {dead_time}도 함께 확인하세요"
+                    p3_title = f"상권의 {dead_time_display}도 함께 확인하세요"
                     p3_text = (
-                        f"현재 사장님 가게는 {store_weak}이 더 약하다고 응답했습니다. "
-                        f"먼저 점포 기록으로 {store_weak}을 확인하고, 이후 상권 고유 DEAD TIME 후보인 {dead_time}도 함께 비교해보세요."
+                        f"현재 사장님 가게는 {store_weak_display}이 더 약하다고 응답했습니다. "
+                        f"먼저 점포 기록으로 {store_weak_display}을 확인하고, 이후 상권 고유 DEAD TIME 후보인 {dead_time_display}도 함께 비교해보세요."
                     )
                     p3_how = "FLOW 보유: 상권 DEAD TIME / 점포 데이터: 사장님 확인 필요"
                 else:
-                    p3_title = f"{store_weak}의 점포 기록을 우선 확인하세요"
+                    p3_title = f"{store_weak_display}의 점포 기록을 우선 확인하세요"
                     p3_text = (
                         "상권에서는 뚜렷한 고유 DEAD TIME이 확인되지 않았습니다. "
-                        f"따라서 {store_weak}의 취약 현상이 점포에서만 나타나는지 통행·입점·주문 기록으로 먼저 확인해보세요."
+                        f"따라서 {store_weak_display}의 취약 현상이 점포에서만 나타나는지 통행·입점·주문 기록으로 먼저 확인해보세요."
                     )
                     p3_how = "FLOW 보유: 상권 시간대 결과 / 점포 데이터: 사장님 확인 필요"
     
@@ -1601,8 +1617,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                 st.markdown("### 직접 점검 체크리스트")
                 st.caption("아래 항목은 FLOW가 이미 보유한 값이 아니라, 사장님이 점포에서 직접 확인할 수 있는 다음 단계입니다.")
     
-                st.checkbox(f"{store_weak} 매장 앞 통행 인원을 같은 시간 간격으로 기록했다", key="check_traffic")
-                st.checkbox(f"{store_weak} 실제 입점 인원 또는 방문자 수를 기록했다", key="check_entry")
+                st.checkbox(f"{store_weak_display} 매장 앞 통행 인원을 같은 시간 간격으로 기록했다", key="check_traffic")
+                st.checkbox(f"{store_weak_display} 실제 입점 인원 또는 방문자 수를 기록했다", key="check_entry")
                 st.checkbox("평소 잘되는 시간대도 같은 방식으로 기록했다", key="check_normal")
                 st.checkbox("두 시간대의 주문건수 또는 POS 기록을 확인했다", key="check_orders")
     
@@ -1610,7 +1626,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     st.write("직접 기록한 값이 있다면 취약시간과 평소 잘되는 시간의 입점률을 간단히 비교할 수 있습니다.")
                     cc1, cc2 = st.columns(2)
                     with cc1:
-                        st.markdown(f"**취약시간 · {store_weak}**")
+                        st.markdown(f"**취약시간 · {store_weak_display}**")
                         weak_pass = st.number_input("통행 인원", min_value=0, value=0, step=1, key="weak_pass")
                         weak_enter = st.number_input("입점 인원", min_value=0, value=0, step=1, key="weak_enter")
                     with cc2:
@@ -1778,7 +1794,7 @@ if page == "FLOW 소개":
             """
             - **유동 규모:** 총 유동인구
             - **연령 구성:** 20대 유동 비중, 30대 유동 비중
-            - **시간대 구성:** 00–06, 06–11, 11–14, 14–17, 17–21, 21–24 유동 비중
+            - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
             - **요일 구성:** 주말 유동 비중
             - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
             - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
