@@ -61,10 +61,11 @@ def display_feature_label(value):
             text = text.replace(raw, f"{normalized}시")
     return text
 
-AREA_FILE = _find_csv("area_summary_category_adjusted(2).csv", "area_summary_category_adjusted.csv")
-TIME_FILE = _find_csv("time_result_category_adjusted (1).csv", "time_result_category_adjusted.csv")
-TWIN_FILE = _find_csv("twin_difference (1).csv", "twin_difference.csv")
-AGE_FILE = _find_csv("age_comparison(2).csv", "age_comparison (2).csv", "age_comparison (1).csv", "age_comparison(1).csv", "age_comparison.csv")
+AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
+TIME_FILE = _find_csv("time_result_category_adjusted.csv")
+TWIN_FILE = _find_csv("twin_difference.csv")
+AGE_FILE = _find_csv("age_comparison.csv")
+VALIDATION_FILE = _find_csv("final_release_validation.csv")
 
 def load_analysis_data():
     area_df = pd.read_csv(AREA_FILE)
@@ -1827,7 +1828,21 @@ if page == "FLOW 소개":
         "최종 릴리즈 검증에서 상권·업종 및 시간대 중복 키, TWIN 선정 조건, DEAD TIME 판정 조건, "
         "연령 비교의 TWIN 일치 여부와 difference_pp 계산식을 점검했습니다."
     )
-    st.success("최종 관리자 전달 결과: 산출 규칙 및 결과 정합성 검증 PASS")
+    try:
+        validation_df = pd.read_csv(VALIDATION_FILE)
+        validation_ok = (
+            {"status", "error_count"}.issubset(validation_df.columns)
+            and len(validation_df) > 0
+            and validation_df["status"].astype(str).str.upper().eq("PASS").all()
+            and pd.to_numeric(validation_df["error_count"], errors="coerce").fillna(1).eq(0).all()
+        )
+        if validation_ok:
+            st.success("산출 규칙 및 결과 정합성 검증 PASS")
+        else:
+            st.warning("최종 검증 파일에서 PASS가 아닌 항목이 확인되었습니다.")
+    except Exception:
+        st.info("최종 검증 파일을 불러오지 못해 검증 상태를 표시할 수 없습니다.")
+
     st.caption("※ 이 PASS는 코드와 판정 규칙의 일관성 검증이며, 서울시 추정자료 자체의 측정오차 부재나 인과관계를 증명하는 것은 아닙니다.")
 
     st.markdown("### FLOW SCORE는 어떻게 읽나요?")
