@@ -61,10 +61,10 @@ def display_feature_label(value):
             text = text.replace(raw, f"{normalized}시")
     return text
 
-AREA_FILE = _find_csv("area_summary_category_adjusted.csv")
-TIME_FILE = _find_csv("time_result_category_adjusted.csv")
-TWIN_FILE = _find_csv("twin_difference.csv")
-AGE_FILE = _find_csv("age_comparison (1).csv", "age_comparison(1).csv", "age_comparison.csv")
+AREA_FILE = _find_csv("area_summary_category_adjusted(2).csv", "area_summary_category_adjusted.csv")
+TIME_FILE = _find_csv("time_result_category_adjusted (1).csv", "time_result_category_adjusted.csv")
+TWIN_FILE = _find_csv("twin_difference (1).csv", "twin_difference.csv")
+AGE_FILE = _find_csv("age_comparison(2).csv", "age_comparison (2).csv", "age_comparison (1).csv", "age_comparison(1).csv", "age_comparison.csv")
 
 def load_analysis_data():
     area_df = pd.read_csv(AREA_FILE)
@@ -473,7 +473,7 @@ st.markdown(
     '<div class="hero-sub">사람은 많은데, 손님은 없는 이유</div>'
     '<div class="hero-desc">'
     '유동인구의 숫자만 보는 것이 아니라,<br>'
-    '실제 소비와 얼마나 연결되는지를 분석합니다.<br>'
+    '추정 소비건수와 얼마나 연결되는지를 분석합니다.<br>'
     '서울 골목상권의 숨은 소비 기회를 찾아보세요.'
     '</div>'
     '</div>',
@@ -1147,7 +1147,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 업종·시간대 특성을 보정한 뒤 이 상권만의 뚜렷한 소비공백 시간은 확인되지 않았습니다.
                 </div>
                 <div style="font-size:14px;color:#607286;line-height:1.65;margin-top:7px;">
-                기대수준보다 실제 소비가 낮아 보이는 시간이 있더라도, 같은 업종에서도 공통적으로 낮다면
+                기대수준보다 추정 소비건수가 낮아 보이는 시간이 있더라도, 같은 업종에서도 공통적으로 낮다면
                 상권 고유 DEAD TIME으로 분류하지 않습니다.
                 </div></div>""", unsafe_allow_html=True
             )
@@ -1255,7 +1255,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 "동일 업종·동일 시간대의 다른 상권 분포를 추가로 비교합니다."
             )
             st.write(
-                "최종 보정 후보는 기존 후보이면서 상권 내부 gap 상위 25%에 해당하고, "
+                "최종 보정 후보는 기존 후보이면서 해당 상권·업종의 비심야 5개 시간대 중 gap이 큰 상위 2개 시간대에 해당하고, "
                 "동일 업종·동일 시간대 비교에서 gap이 상위 10%이며 해당 그룹의 중앙값보다 큰 경우입니다."
             )
             detail_cols = [
@@ -1410,7 +1410,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                     "그 후보들 가운데 16개 구조 특성이 가장 유사한 상권을 비교 TWIN으로 선택합니다."
                 )
                 st.info(
-                    "유사도 85점은 16개 구조 특성의 업종 내 상대적 위치가 충분히 비슷하다는 선정 기준입니다. "
+                    "유사도 85점은 통계적 유의수준이나 자동 추정된 최적 임계값이 아니라 서비스 운영을 위해 설정한 선정 기준입니다. "
                     "두 상권의 실제 특성이 85% 일치한다는 뜻은 아닙니다."
                 )
                 st.markdown(
@@ -1418,12 +1418,11 @@ if st.session_state.show_result and st.session_state.selected_key:
                     **비교에 사용한 16개 특성**
 
                     - **유동 규모:** 총 유동인구
-                    - **연령 구성:** 20대 유동 비중, 30대 유동 비중
-                    - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
-                    - **요일 구성:** 주말 유동 비중
-                    - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
-                    - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
+                    - **인구·성별 구조:** 상주인구, 직장인구, 남성 유동 비중, 직장·상주 구조
+                    - **점포 구조:** 유사 업종 점포 수, 프랜차이즈 점포 수, 유사 업종 점포 밀도
                     - **상권 규모:** 상권 면적
+                    - **요일 구성:** 주말 유동 비중
+                    - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
                     """
                 )
                 st.caption(
@@ -1762,7 +1761,7 @@ if page == "FLOW 소개":
             - `area_summary_category_adjusted.csv` · 상권×업종 단위 최종 진단 및 TWIN 결과
             - `time_result_category_adjusted.csv` · 상권×업종×시간대 DEAD TIME 판정 결과
             - `twin_difference.csv` · TWIN 구조 차이 TOP 3
-            - `age_comparison (1).csv` · 최종 TWIN과의 연령대별 유동인구 구성 비교
+            - `age_comparison.csv` · 최종 TWIN과의 연령대별 유동인구 구성 비교
             - `flow_area_map.csv` · 상권명·자치구·행정동 등 탐색용 메타데이터
             """
         )
@@ -1771,7 +1770,7 @@ if page == "FLOW 소개":
     st.markdown(
         """
         **① 정제·결합**  →  상권·업종·시간대 기준 통일 및 분석 가능 구간 선별  
-        **② 상대화**  →  업종 내 백분위 등 상대적 위치로 상권 간 규모 차이 보정  
+        **② 소비 기대모형·FLOW SCORE**  →  2021~2024 학습·2025 검증 후 기대수준 대비 소비 연결 성과를 동일 업종 내 상대화  
         **③ DEAD TIME 보정**  →  반복성 + 상권 내부 순위 + 동일 업종·동일 시간대 비교  
         **④ TWIN 탐색**  →  16개 구조 특성이 유사하면서 FLOW SCORE가 더 높은 동일 업종 상권 탐색  
         **⑤ 점포 점검**  →  상권 결과와 사용자 응답을 결합해 우선 확인 항목 제시
@@ -1782,18 +1781,18 @@ if page == "FLOW 소개":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("#### DEAD TIME")
-        st.write("단순히 기대수준과 실제값의 차이가 가장 큰 시간을 선택하지 않습니다.")
+        st.write("단순히 기대수준과 실제값의 차이가 가장 큰 시간을 선택하지 않습니다. 최초 후보부터 동일 분기·동일 업종·동일 시간대의 다른 상권과 비교하고, 2025년 중 최소 2개 분기에서 반복된 소비공백만 출발점으로 사용합니다.")
         st.markdown(
             """
             **최종 후보 조건**
             - 기존 반복 소비공백 후보
-            - 상권 내부 Gap 백분위 **상위 25%**
+            - 상권 내부 비심야 5개 시간대 중 Gap이 큰 **상위 2개 시간대**
             - 동일 업종·동일 시간대 Gap 백분위 **상위 10%**
             - 업종·시간대 기준 대비 상대 Gap **> 0**
             """
         )
         st.latex(r"Relative\ Gap = Gap_{area,time} - Median(Gap_{same\ category,time})")
-        st.caption("업종 자체가 원래 약한 시간대는 ‘업종 공통 저활성 시간대’로 별도 구분합니다.")
+        st.caption("업종 공통 저활성 특성도 함께 표시합니다. 다만 해당 시간대가 다른 상권보다 유독 큰 소비공백을 보이며 최종 DEAD 조건까지 충족하면 ‘상권 고유 DEAD TIME 후보’가 우선됩니다.")
 
     with c2:
         st.markdown("#### 비교 TWIN")
@@ -1808,26 +1807,39 @@ if page == "FLOW 소개":
             """
         )
         st.latex(r"Similarity = 100 - \frac{1}{16}\sum_{j=1}^{16}|P_{target,j}-P_{candidate,j}|\times100")
-        st.caption("P는 각 구조 특성의 동일 업종 내 백분위 위치입니다. 85점은 실제 특성이 85% 일치한다는 뜻이 아닙니다.")
+        st.caption("P는 각 구조 특성의 동일 업종 내 백분위 위치입니다. 유사도 85점은 평균 절대 백분위 차이가 0.15 이하라는 의미이며, 통계적 유의수준이나 실제 특성 85% 일치율을 뜻하지 않습니다.")
 
     with st.expander("TWIN 비교에 사용한 16개 구조 특성"):
         st.markdown(
             """
             - **유동 규모:** 총 유동인구
-            - **연령 구성:** 20대 유동 비중, 30대 유동 비중
-            - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
-            - **요일 구성:** 주말 유동 비중
-            - **생활·업무 인구:** 상주인구, 직장인구, 직장·상주 구조
-            - **점포 구성:** 해당 업종 점포 수, 프랜차이즈 점포 수
+            - **인구·성별 구조:** 상주인구, 직장인구, 남성 유동 비중, 직장·상주 구조
+            - **점포 구조:** 유사 업종 점포 수, 프랜차이즈 점포 수, 유사 업종 점포 밀도
             - **상권 규모:** 상권 면적
+            - **요일 구성:** 주말 유동 비중
+            - **시간대 구성:** 00–06시, 06–11시, 11–14시, 14–17시, 17–21시, 21–24시 유동 비중
             """
         )
-        st.info("연령대 상세 비교표는 최종 TWIN을 설명하기 위한 보조 정보입니다. 20대·30대 외 연령대는 TWIN 선정 및 similarity 계산에 추가로 사용하지 않습니다.")
+        st.info("연령대 상세 비교표는 최종 TWIN 선정 후 두 상권의 차이를 설명하는 보조 정보입니다. 연령대 변수는 TWIN의 16개 구조 유사도 계산에는 사용하지 않습니다. 다만 20대·30대 유동 비중은 FLOW SCORE의 소비 기대모형 통제변수로 사용됩니다.")
+
+    st.markdown("### 산출 규칙 및 결과 정합성 검증")
+    st.write(
+        "최종 릴리즈 검증에서 상권·업종 및 시간대 중복 키, TWIN 선정 조건, DEAD TIME 판정 조건, "
+        "연령 비교의 TWIN 일치 여부와 difference_pp 계산식을 점검했습니다."
+    )
+    st.success("최종 관리자 전달 결과: 산출 규칙 및 결과 정합성 검증 PASS")
+    st.caption("※ 이 PASS는 코드와 판정 규칙의 일관성 검증이며, 서울시 추정자료 자체의 측정오차 부재나 인과관계를 증명하는 것은 아닙니다.")
 
     st.markdown("### FLOW SCORE는 어떻게 읽나요?")
     st.write(
-        "FLOW SCORE는 같은 업종 안에서 상권의 소비 연결 성과를 상대적으로 비교하기 위한 점수입니다. "
+        "FLOW SCORE는 유동인구, 상주·직장인구, 점포 수, 상권 면적, 시간대와 업종 특성 등을 고려한 소비 기대수준 대비 "
+        "추정 소비건수의 연결 성과를 동일 업종 상권 안에서 0~100점으로 상대화한 지표입니다. "
+        "현재 최종 FLOW SCORE는 Consumer Score와 동일하며, Traffic Score와 Consumer Score를 가중합한 종합점수가 아닙니다. "
         "앱에서는 실제 매출액이나 미래 매출 예측값으로 해석하지 않으며, TWIN 역시 이 점수가 더 높은 상권만 비교 대상으로 사용합니다."
+    )
+    st.caption(
+        "※ 소비 기대수준 모형은 2021~2024년 자료로 학습하고 2025년 자료로 검증했습니다. "
+        "Baseline RMSE 2.374712, 확장모형 RMSE 2.216418로 검증 RMSE가 더 낮은 확장모형을 최종 사용합니다."
     )
 
     st.markdown("### 해석 시 주의사항")
