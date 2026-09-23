@@ -821,17 +821,30 @@ if st.session_state.show_result and st.session_state.selected_key:
         common_low_times = class_rows.loc[
             class_rows["dead_time_class"].astype(str).eq("업종 공통 저활성 시간대"), "time"
         ].astype(str).tolist()
-        unique_dead_times = class_rows.loc[
+        model_unique_dead_times = class_rows.loc[
             class_rows["dead_time_class"].astype(str).eq("상권 고유 DEAD TIME 후보"), "time"
         ].astype(str).tolist()
-    else:
-        common_low_times, unique_dead_times = [], []
 
-    # 대표 DEAD TIME은 데이터팀 area_summary 정의를 유지하되,
+        # 서비스 표시 단계의 보수적 해석 규칙:
+        # 최종 기준분기(2025Q4)의 추정 소비건수(actual)가 0인 DEAD 후보는
+        # 비영업 가능성을 배제하기 어려우므로 DEAD로 단정하지 않고 '활동 확인 필요'로 유보합니다.
+        actual_num = pd.to_numeric(class_rows.get("actual", np.nan), errors="coerce")
+        activity_review_times = class_rows.loc[
+            class_rows["time"].astype(str).isin(model_unique_dead_times) & actual_num.eq(0), "time"
+        ].astype(str).tolist()
+        unique_dead_times = [t for t in model_unique_dead_times if t not in activity_review_times]
+    else:
+        common_low_times, model_unique_dead_times, activity_review_times, unique_dead_times = [], [], [], []
+
+    # 대표 DEAD TIME은 데이터팀 area_summary 정의를 우선 참고하되,
+    # 서비스에서 유보된 시간이라면 실제 표시되는 DEAD 후보 중 첫 시간을 대표값으로 사용합니다.
     # 실제 화면의 DEAD TIME 존재 여부와 목록은 전체 후보를 기준으로 합니다.
     dead_time_raw = row.get("adjusted_dead_time", row.get("dead_time", ""))
     representative_dead_time = "" if pd.isna(dead_time_raw) else str(dead_time_raw).strip()
+    if representative_dead_time in activity_review_times:
+        representative_dead_time = unique_dead_times[0] if unique_dead_times else ""
     has_dead_time = len(unique_dead_times) > 0
+    has_activity_review = len(activity_review_times) > 0
     dead_time = " · ".join(unique_dead_times) if has_dead_time else "뚜렷한 DEAD TIME 없음"
     dead_time_display = display_time_join(unique_dead_times) if has_dead_time else "뚜렷한 DEAD TIME 없음"
 
@@ -1153,6 +1166,17 @@ if st.session_state.show_result and st.session_state.selected_key:
                 </div></div>""", unsafe_allow_html=True
             )
 
+        if has_activity_review:
+            review_text = ", ".join(display_time(t) for t in activity_review_times)
+            st.markdown(
+                f"""<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
+                <b style="color:#173c67;">활동 확인 필요 · {review_text}</b><br>
+                <span style="font-size:14px;color:#526579;line-height:1.65;">
+                분석모형에서는 DEAD TIME 후보 기준을 충족했지만, 2025년 4분기 추정 소비건수가 0건입니다.
+                비영업 가능성을 배제하기 어려워 서비스 화면에서는 DEAD TIME으로 단정하지 않고 진단을 유보합니다.
+                </span></div>""", unsafe_allow_html=True
+            )
+
         if common_low_times:
             common_text = ", ".join(display_time(t) for t in common_low_times)
             st.markdown(
@@ -1168,13 +1192,13 @@ if st.session_state.show_result and st.session_state.selected_key:
         time_df = pd.DataFrame({
             "시간대": [display_time(t) for t in data["times"]],
             "상권 특성 기반 기대수준": data["potential"],
-            "실제 매출건수": data["actual"]
+            "추정 소비건수": data["actual"]
         })
         fig = go.Figure()
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["상권 특성 기반 기대수준"],
                              name="상권 특성 기반 기대수준", marker_color="#A8C7E8"))
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["실제 매출건수"],
-                             name="실제 매출건수", marker_color="#245B91"))
+                             name="추정 소비건수", marker_color="#245B91"))
         fig.update_layout(
             barmode="group", height=390, margin=dict(l=15, r=15, t=50, b=15),
             plot_bgcolor="white", paper_bgcolor="white",
@@ -1198,7 +1222,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             """<div style="background:#f7f9fc;border:1px solid #dfe7ef;border-radius:10px;padding:11px 15px;margin:4px 0 12px;">
             <div style="font-weight:800;color:#173c67;margin-bottom:4px;">그래프 해석 포인트</div>
             <div style="font-size:14px;line-height:1.6;color:#526579;">
-            연한 막대는 <b>상권 특성 기반 기대수준</b>, 진한 막대는 <b>실제 매출건수</b>입니다.
+            연한 막대는 <b>상권 특성 기반 기대수준</b>, 진한 막대는 <b>추정 소비건수</b>입니다.
             <b>막대 차이가 가장 큰 시간이 곧 DEAD TIME인 것은 아닙니다.</b>
             최종 판정에는 반복성, 상권 내부 상대순위, 동일 업종·동일 시간대 비교가 함께 반영됩니다.
             </div></div>""", unsafe_allow_html=True
@@ -1258,6 +1282,11 @@ if st.session_state.show_result and st.session_state.selected_key:
             st.write(
                 "최종 보정 후보는 기존 후보이면서 해당 상권·업종의 비심야 5개 시간대 중 gap이 큰 상위 2개 시간대에 해당하고, "
                 "동일 업종·동일 시간대 비교에서 gap이 상위 10%이며 해당 그룹의 중앙값보다 큰 경우입니다."
+            )
+            st.info(
+                "서비스 표시 규칙: 위 분석 기준을 충족하더라도 2025년 4분기 추정 소비건수가 0건이면 "
+                "비영업 가능성을 배제하기 어려워 '활동 확인 필요'로 표시하고 DEAD TIME 진단은 유보합니다. "
+                "원본 분석 판정값 자체는 변경하지 않습니다."
             )
             detail_cols = [
                 "time", "dead_time_class", "within_area_gap_percentile",
@@ -1736,25 +1765,34 @@ if page == "FLOW 소개":
 
     st.markdown("### 데이터 구성")
     st.write(
-        "유동인구·소비/매출·점포·상주/직장인구 등 원천 데이터를 결합하고, "
-        "상권 × 업종 × 시간대를 공통 분석 단위로 맞춰 FLOW 분석용 데이터로 가공했습니다."
+        "서울시 상권분석서비스의 길단위인구·추정매출·상주인구·직장인구·점포·영역 자료를 결합했습니다. "
+        "분석 대상은 서울시 골목상권(A)의 5개 업종이며, 원자료는 2021년 1분기~2025년 4분기를 사용합니다. "
+        "최종 FLOW SCORE·DEAD TIME·TWIN·연령 비교 화면은 2025년 4분기를 기준으로 합니다."
     )
 
     d1, d2, d3, d4 = st.columns(4)
     with d1:
         st.markdown("**유동인구**")
-        st.caption("시간대·연령대별 유동 규모와 구성")
+        st.caption("시간대·성별·연령대·요일별 유동 규모와 구성")
     with d2:
-        st.markdown("**소비·매출**")
-        st.caption("업종·시간대별 소비 연결 수준")
+        st.markdown("**추정 소비건수**")
+        st.caption("서울시 제공 업종·시간대별 추정 매출 건수")
     with d3:
         st.markdown("**점포**")
-        st.caption("동일 업종 및 프랜차이즈 점포 구성")
+        st.caption("유사 업종 및 프랜차이즈 점포 구성")
     with d4:
         st.markdown("**상권 구조**")
         st.caption("상주·직장인구, 상권 면적 등")
 
-    st.caption("※ 연령대 비중은 실제 구매 고객 연령이 아니라 해당 상권의 유동인구 연령 구성입니다.")
+    st.caption(
+        "※ 추정 매출 건수는 실제 POS 전수자료가 아닌 서울시 상권분석서비스의 추정치입니다. "
+        "연령대 비중 역시 구매 고객 연령이 아니라 해당 상권의 유동인구 연령 구성입니다."
+    )
+    st.caption("※ 00–06시 데이터는 보존하지만 영업 여부가 불명확하고 0값이 많아 DEAD TIME 판정에서는 제외합니다.")
+    st.caption(
+        "※ 서비스 표시 단계에서는 분석상 DEAD TIME 후보라도 2025년 4분기 추정 소비건수가 0건이면 "
+        "비영업 가능성을 배제하기 어려워 ‘활동 확인 필요’로 진단을 유보합니다. 원본 분석 판정은 변경하지 않습니다."
+    )
 
     with st.expander("분석에 연결된 최종 가공 파일 보기"):
         st.markdown(
@@ -1770,11 +1808,12 @@ if page == "FLOW 소개":
     st.markdown("### 분석 흐름")
     st.markdown(
         """
-        **① 정제·결합**  →  상권·업종·시간대 기준 통일 및 분석 가능 구간 선별  
-        **② 소비 기대모형·FLOW SCORE**  →  2021~2024 학습·2025 검증 후 기대수준 대비 소비 연결 성과를 동일 업종 내 상대화  
-        **③ DEAD TIME 보정**  →  반복성 + 상권 내부 순위 + 동일 업종·동일 시간대 비교  
-        **④ TWIN 탐색**  →  16개 구조 특성이 유사하면서 FLOW SCORE가 더 높은 동일 업종 상권 탐색  
-        **⑤ 점포 점검**  →  상권 결과와 사용자 응답을 결합해 우선 확인 항목 제시
+        **① 정제·결합**  →  2021~2025년 골목상권(A) 자료를 상권·업종·시간대 기준으로 결합  
+        **② 소비 기대모형 검증**  →  2021~2024년 학습 후 2025년 검증자료에서 Baseline과 확장모형의 RMSE 비교  
+        **③ FLOW SCORE**  →  선택된 모형의 기대수준 대비 추정 소비 연결 성과를 동일 업종 내 0~100점으로 상대화  
+        **④ DEAD TIME 보정**  →  반복성 + 상권 내부 순위 + 동일 업종·동일 시간대 비교  
+        **⑤ BEST TWIN 탐색**  →  연령을 제외한 16개 구조 특성이 유사하면서 FLOW SCORE가 더 높은 동일 업종 상권 탐색  
+        **⑥ 연령 비교·점포 점검**  →  최종 TWIN의 유동 연령 구성을 비교하고 사용자 응답과 결합해 우선 확인 항목 제시
         """
     )
 
@@ -1782,7 +1821,7 @@ if page == "FLOW 소개":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("#### DEAD TIME")
-        st.write("단순히 기대수준과 실제값의 차이가 가장 큰 시간을 선택하지 않습니다. 최초 후보부터 동일 분기·동일 업종·동일 시간대의 다른 상권과 비교하고, 2025년 중 최소 2개 분기에서 반복된 소비공백만 출발점으로 사용합니다.")
+        st.write("단순히 기대 소비수준과 추정 소비건수의 차이가 가장 큰 시간을 선택하지 않습니다. 최초 후보부터 동일 분기·동일 업종·동일 시간대의 다른 상권과 비교하고, 2025년 4개 분기 중 최소 2개 분기에서 반복된 소비공백만 출발점으로 사용합니다.")
         st.markdown(
             """
             **최종 후보 조건**
@@ -1825,8 +1864,9 @@ if page == "FLOW 소개":
 
     st.markdown("### 산출 규칙 및 결과 정합성 검증")
     st.write(
-        "최종 릴리즈 검증에서 상권·업종 및 시간대 중복 키, TWIN 선정 조건, DEAD TIME 판정 조건, "
-        "연령 비교의 TWIN 일치 여부와 difference_pp 계산식을 점검했습니다."
+        "최종 릴리즈 검증에서 상권×업종·시간대·연령 비교의 중복 키, TWIN 유사도 및 성과 조건, 자기 자신 TWIN 여부, "
+        "DEAD TIME 판정 조건, area_summary와 연령 비교의 TWIN 일치 여부, TWIN 미선정 시 비교값 존재 여부, "
+        "difference_pp 계산식을 점검했습니다."
     )
     try:
         validation_df = pd.read_csv(VALIDATION_FILE)
@@ -1847,21 +1887,23 @@ if page == "FLOW 소개":
 
     st.markdown("### FLOW SCORE는 어떻게 읽나요?")
     st.write(
-        "FLOW SCORE는 유동인구, 상주·직장인구, 점포 수, 상권 면적, 시간대와 업종 특성 등을 고려한 소비 기대수준 대비 "
-        "추정 소비건수의 연결 성과를 동일 업종 상권 안에서 0~100점으로 상대화한 지표입니다. "
-        "현재 최종 FLOW SCORE는 Consumer Score와 동일하며, Traffic Score와 Consumer Score를 가중합한 종합점수가 아닙니다. "
-        "앱에서는 실제 매출액이나 미래 매출 예측값으로 해석하지 않으며, TWIN 역시 이 점수가 더 높은 상권만 비교 대상으로 사용합니다."
+        "FLOW SCORE는 주어진 유동·업종·시간대·분기·상권 특성에서 기대되는 소비수준과 비교해 "
+        "추정 소비건수가 상대적으로 얼마나 잘 발생했는지를 나타내는 동일 업종 내 0~100점의 상대 지표입니다. "
+        "상권×업종별로 00–06시를 제외한 분석 가능 시간대의 소비 전환 잔차를 평균한 뒤 동일 업종 안에서 백분위 점수로 변환합니다. "
+        "최종 FLOW SCORE는 Consumer Score와 동일하며, Traffic Score와 Consumer Score를 가중평균하지 않습니다."
     )
     st.caption(
-        "※ 소비 기대수준 모형은 2021~2024년 자료로 학습하고 2025년 자료로 검증했습니다. "
-        "Baseline RMSE 2.374712, 확장모형 RMSE 2.216418로 검증 RMSE가 더 낮은 확장모형을 최종 사용합니다."
+        "※ 소비 기대모형은 2021~2024년 자료로 Baseline과 상권특성 확장모형을 학습하고, "
+        "2025년 검증자료의 로그 추정 매출건수 RMSE를 비교해 RMSE가 더 낮은 모형을 선택합니다. "
+        "Potential은 정확한 미래 매출 예측값이 아니라 동일한 조건에서 기대되는 상대적 소비 수준입니다."
     )
 
     st.markdown("### 해석 시 주의사항")
     st.markdown(
         """
-        FLOW는 **원인 규명 모델이나 미래 매출 예측 모델이 아닙니다.** 데이터에서 반복적으로 나타나는 상대적 소비공백을 발견하고,
+        FLOW는 **원인 규명 모델이나 미래 매출 예측 모델이 아닙니다.** 서울시의 추정자료에서 반복적으로 나타나는 상대적 소비공백을 발견하고,
         유사 상권과의 비교를 통해 점검 우선순위를 좁히는 진단 도구입니다. TWIN의 TOP 3 차이 역시 높은 FLOW SCORE의 원인으로
-        확정한 변수가 아니라 두 상권을 이해하기 위한 **비교 단서**입니다.
+        확정한 변수가 아니라 두 상권을 이해하기 위한 **비교 단서**입니다. 산출 규칙의 정합성 검증 PASS 또한 원자료의 측정오차가 없거나
+        상권 특성이 소비 차이의 원인임을 증명한다는 뜻은 아닙니다.
         """
     )
