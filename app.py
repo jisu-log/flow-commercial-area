@@ -1197,7 +1197,7 @@ if st.session_state.show_result and st.session_state.selected_key:
         fig = go.Figure()
         fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["상권 특성 기반 기대수준"],
                              name="상권 특성 기반 기대수준", marker_color="#A8C7E8"))
-        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["실제 매출건수"],
+        fig.add_trace(go.Bar(x=time_df["시간대"], y=time_df["추정 소비건수"],
                              name="추정 소비건수", marker_color="#245B91"))
         fig.update_layout(
             barmode="group", height=390, margin=dict(l=15, r=15, t=50, b=15),
