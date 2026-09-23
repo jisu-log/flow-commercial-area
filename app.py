@@ -1183,9 +1183,8 @@ if st.session_state.show_result and st.session_state.selected_key:
                 f"""<div style="background:#fff8ec;border:1px solid #f0d8ad;border-radius:10px;padding:12px 15px;margin:10px 0 14px;">
                 <b style="color:#8a5a13;">업종 공통 저활성 시간 · {common_text}</b><br>
                 <span style="font-size:14px;color:#6c604f;">
-                해당 업종에서 전반적으로 소비 연결이 약하게 나타나는 시간대입니다.
-                이 상권에서도 소비공백 신호가 나타났지만, <b>업종 자체의 시간대 특성을 고려해
-                상권 고유 DEAD TIME과 구분했습니다.</b>
+                소비공백은 관측되지만, 동일 업종에서도 공통적으로 나타나는 시간대이므로
+                <b>이 상권만의 문제로 해석하지 않습니다.</b>
                 </span></div>""", unsafe_allow_html=True
             )
 
@@ -1205,7 +1204,7 @@ if st.session_state.show_result and st.session_state.selected_key:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             yaxis=dict(
                 gridcolor="#e9eef3",
-                title=dict(text="소비 수준 (건)", font=dict(size=13, color="#526579")),
+                title=dict(text="추정 소비건수 (건)", font=dict(size=13, color="#526579")),
                 showticklabels=True,
                 tickfont=dict(size=11, color="#607286"),
                 rangemode="tozero"
@@ -1354,7 +1353,7 @@ if st.session_state.show_result and st.session_state.selected_key:
                 구조는 비슷하지만, 같은 업종의 소비 연결 성과는 더 높은 상권입니다.
                 </div>
                 <div class="subtext">
-                구조 유사도 {similarity_text}점 · 16개 상권 특성을 종합한 비교용 지수
+                구조 유사도 {similarity_text} · 16개 상권 특성을 종합한 비교용 지수
                 </div></div>""", unsafe_allow_html=True
             )
 
@@ -1477,7 +1476,7 @@ if st.session_state.show_result and st.session_state.selected_key:
     
         if compare_store:
             store_weak = st.selectbox(
-                "① 평소 주문이나 매출이 가장 약한 시간대는 언제인가요?",
+                "① 평소 주문·구매가 가장 약한 시간대는 언제인가요?",
                 ["선택해주세요"] + list(data["times"]),
                 format_func=lambda x: x if x == "선택해주세요" else display_time(x),
                 key="store_weak_time"
@@ -1766,7 +1765,7 @@ if page == "FLOW 소개":
     st.markdown("### 데이터 구성")
     st.write(
         "서울시 상권분석서비스의 길단위인구·추정매출·상주인구·직장인구·점포·영역 자료를 결합했습니다. "
-        "분석 대상은 서울시 골목상권(A)의 5개 업종이며, 원자료는 2021년 1분기~2025년 4분기를 사용합니다. "
+        "분석 대상은 서울시 골목상권(A)의 5개 업종이며, 원자료는 2021년 1분기–2025년 4분기를 사용합니다. "
         "최종 FLOW SCORE·DEAD TIME·TWIN·연령 비교 화면은 2025년 4분기를 기준으로 합니다."
     )
 
@@ -1808,8 +1807,8 @@ if page == "FLOW 소개":
     st.markdown("### 분석 흐름")
     st.markdown(
         """
-        **① 정제·결합**  →  2021~2025년 골목상권(A) 자료를 상권·업종·시간대 기준으로 결합  
-        **② 소비 기대모형 검증**  →  2021~2024년 학습 후 2025년 검증자료에서 Baseline과 확장모형의 RMSE 비교  
+        **① 정제·결합**  →  2021–2025년 골목상권(A) 자료를 상권·업종·시간대 기준으로 결합  
+        **② 소비 기대모형 검증**  →  2021–2024년 학습 후 2025년 검증자료에서 Baseline과 확장모형의 RMSE 비교  
         **③ FLOW SCORE**  →  선택된 모형의 기대수준 대비 추정 소비 연결 성과를 동일 업종 내 0~100점으로 상대화  
         **④ DEAD TIME 보정**  →  반복성 + 상권 내부 순위 + 동일 업종·동일 시간대 비교  
         **⑤ BEST TWIN 탐색**  →  연령을 제외한 16개 구조 특성이 유사하면서 FLOW SCORE가 더 높은 동일 업종 상권 탐색  
@@ -1831,7 +1830,7 @@ if page == "FLOW 소개":
             - 업종·시간대 기준 대비 상대 Gap **> 0**
             """
         )
-        st.latex(r"Relative\ Gap = Gap_{area,time} - Median(Gap_{same\ category,time})")
+        st.markdown("**상대 소비공백 = 해당 상권의 소비공백 − 동일 업종·동일 시간대 소비공백 중앙값**")
         st.caption("업종 공통 저활성 특성도 함께 표시합니다. 다만 해당 시간대가 다른 상권보다 유독 큰 소비공백을 보이며 최종 DEAD 조건까지 충족하면 ‘상권 고유 DEAD TIME 후보’가 우선됩니다.")
 
     with c2:
@@ -1862,12 +1861,29 @@ if page == "FLOW 소개":
         )
         st.info("연령대 상세 비교표는 최종 TWIN 선정 후 두 상권의 차이를 설명하는 보조 정보입니다. 연령대 변수는 TWIN의 16개 구조 유사도 계산에는 사용하지 않습니다. 다만 20대·30대 유동 비중은 FLOW SCORE의 소비 기대모형 통제변수로 사용됩니다.")
 
-    st.markdown("### 산출 규칙 및 결과 정합성 검증")
+    st.markdown("### 결과 검증은 어떻게 했나요?")
     st.write(
-        "최종 릴리즈 검증에서 상권×업종·시간대·연령 비교의 중복 키, TWIN 유사도 및 성과 조건, 자기 자신 TWIN 여부, "
-        "DEAD TIME 판정 조건, area_summary와 연령 비교의 TWIN 일치 여부, TWIN 미선정 시 비교값 존재 여부, "
-        "difference_pp 계산식을 점검했습니다."
+        "최종 결과를 서비스에 연결하기 전, 분석 과정에서 정의한 산출 규칙이 "
+        "최종 결과 파일에도 동일하게 적용되었는지 자동 검증했습니다."
     )
+
+    v1, v2, v3 = st.columns(3)
+    with v1:
+        st.markdown("**① 결과 구조 확인**")
+        st.caption("상권×업종 결과와 시간대 결과에 중복 키가 없는지 확인했습니다.")
+    with v2:
+        st.markdown("**② DEAD TIME 판정 확인**")
+        st.caption(
+            "최종 DEAD TIME이 반복성·상권 내부 순위·동일 업종/시간대 비교 등 "
+            "정의한 판정 조건을 충족하는지 확인했습니다."
+        )
+    with v3:
+        st.markdown("**③ TWIN·연령 비교 확인**")
+        st.caption(
+            "TWIN의 유사도·FLOW SCORE·자기 자신 제외 조건과 최종 TWIN-연령 비교의 "
+            "일치 여부 및 연령 비중 차이 계산을 확인했습니다."
+        )
+
     try:
         validation_df = pd.read_csv(VALIDATION_FILE)
         validation_ok = (
@@ -1877,13 +1893,17 @@ if page == "FLOW 소개":
             and pd.to_numeric(validation_df["error_count"], errors="coerce").fillna(1).eq(0).all()
         )
         if validation_ok:
-            st.success("산출 규칙 및 결과 정합성 검증 PASS")
+            st.success("✓ 최종 검증 결과: PASS")
         else:
             st.warning("최종 검증 파일에서 PASS가 아닌 항목이 확인되었습니다.")
     except Exception:
         st.info("최종 검증 파일을 불러오지 못해 검증 상태를 표시할 수 없습니다.")
 
-    st.caption("※ 이 PASS는 코드와 판정 규칙의 일관성 검증이며, 서울시 추정자료 자체의 측정오차 부재나 인과관계를 증명하는 것은 아닙니다.")
+    st.caption(
+        "※ PASS는 산출 규칙과 결과 파일의 정합성을 의미합니다. "
+        "서울시 추정자료 자체의 측정오차가 없거나 상권 특성과 소비 간 인과관계가 "
+        "입증되었다는 의미는 아닙니다."
+    )
 
     st.markdown("### FLOW SCORE는 어떻게 읽나요?")
     st.write(
@@ -1893,7 +1913,7 @@ if page == "FLOW 소개":
         "최종 FLOW SCORE는 Consumer Score와 동일하며, Traffic Score와 Consumer Score를 가중평균하지 않습니다."
     )
     st.caption(
-        "※ 소비 기대모형은 2021~2024년 자료로 Baseline과 상권특성 확장모형을 학습하고, "
+        "※ 소비 기대모형은 2021–2024년 자료로 Baseline과 상권특성 확장모형을 학습하고, "
         "2025년 검증자료의 로그 추정 매출건수 RMSE를 비교해 RMSE가 더 낮은 모형을 선택합니다. "
         "Potential은 정확한 미래 매출 예측값이 아니라 동일한 조건에서 기대되는 상대적 소비 수준입니다."
     )
